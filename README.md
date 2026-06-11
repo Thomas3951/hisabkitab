@@ -15,7 +15,16 @@ owner's confirmation. The agent shows its work, flags anything it's unsure about
 - `docs/nepali-smb-finance-agent-PRD*.md` — v1.0 base, v1.1 (safety + verified tax, authoritative),
   v1.2 (reports module), v2.0 (commercialization — build after the pilot).
 
-## Status — Phase 0 complete
+## Status — Phase 0 + Phase 1 complete
+
+**Phase 1** ships `packages/db` (Postgres 16+ schema via drizzle, **Row-Level Security** on every
+tenant table — fails closed, app role cannot bypass) and `packages/mcp-ledger` (a tenant-bound MCP
+server over Streamable HTTP: record/validate/draft→confirm tools, tenant derived only from
+HMAC-signed session metadata, every write audited). 24 contract tests run a real MCP client against
+real Postgres as the RLS-constrained role; `pnpm --filter @hisab/mcp-ledger verify` drives the live
+HTTP server. See `packages/db/migrations/0001_init.sql` for the schema.
+
+### Phase 0
 `packages/shared` ships the foundations, each with happy fixtures **and adversarial probes**:
 
 | Unit | What it does |
@@ -37,4 +46,5 @@ pnpm typecheck   # tsc --strict
 ```
 
 ## Next
-Phase 1: PostgreSQL 16 + drizzle + RLS schema; Ledger MCP (record / validate / draft→confirm).
+Phase 2: Managed Agents agent definition + 3 skills + system prompt; orchestrator session client;
+Pre-delivery Audit Gate in the relay path.
