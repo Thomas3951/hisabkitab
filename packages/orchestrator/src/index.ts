@@ -39,3 +39,27 @@ export {
   type TurnOptions,
   type TurnResult,
 } from './session/client.js';
+export { getOrCreateTenantSession, type SessionStoreDeps } from './session/store.js';
+export { verifyWebhookSignature, handleVerifyHandshake } from './whatsapp/signature.js';
+export { parseInboundWebhook, type InboundMessage, type InboundMedia } from './whatsapp/inbound.js';
+export { WaClient, WaError, type WaClientOptions, type WaMediaMeta } from './whatsapp/wa-client.js';
+export { TEMPLATES, submitTemplates, type TemplateDefinition } from './whatsapp/templates.js';
+export { attachInboundMedia, mountPathFor, MAX_MEDIA_BYTES } from './whatsapp/media.js';
+export {
+  processInbound,
+  SerialQueues,
+  UNSUPPORTED_REPLY,
+  MEDIA_FAILURE_REPLY,
+  type RouterDeps,
+} from './whatsapp/router.js';
+export {
+  issuePairingCode,
+  handleUnknownSender,
+  findTenantBySender,
+  ONBOARDING_PROMPT,
+  pairedWelcome,
+  PAIRING_TTL_MINUTES,
+  type PairingOutcome,
+} from './onboarding/pairing.js';
+export { buildServer, type ServerOptions } from './server.js';
+export { loadConfig, type OrchestratorConfig } from './config.js';

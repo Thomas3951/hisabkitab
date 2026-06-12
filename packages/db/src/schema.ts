@@ -142,3 +142,23 @@ export const validationEvents = pgTable('validation_events', {
   reason: text('reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ----- Phase 3 (WhatsApp): orchestrator-only tables (role hisab_orch) -----
+
+/** Inbound idempotency: Meta retries webhooks; insert-or-conflict on the message id. */
+export const waEvents = pgTable('wa_events', {
+  waMessageId: text('wa_message_id').primaryKey(),
+  fromE164: text('from_e164').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** One persistent Managed Agents session per tenant. */
+export const tenantSessions = pgTable('tenant_sessions', {
+  tenantId: uuid('tenant_id')
+    .primaryKey()
+    .references(() => tenants.id),
+  sessionId: text('session_id').notNull(),
+  vaultId: text('vault_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

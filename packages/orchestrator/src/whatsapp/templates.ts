@@ -1,0 +1,97 @@
+/**
+ * The three Utility templates (PRD v1.0 §12.2) — submit for Meta approval EARLY
+ * (long lead time). Never marketing; defined-purpose finance assistant only.
+ *
+ *   pnpm --filter @hisab/orchestrator templates:submit
+ *
+ * Needs WA_BUSINESS_ACCOUNT_ID + WA_ACCESS_TOKEN. Submission is idempotent-ish:
+ * an already-submitted name returns a Graph error we report and continue past.
+ */
+
+export interface TemplateDefinition {
+  name: string;
+  category: 'UTILITY' | 'AUTHENTICATION';
+  language: string;
+  components: unknown[];
+}
+
+export const TEMPLATES: TemplateDefinition[] = [
+  {
+    name: 'vat_due_soon',
+    category: 'UTILITY',
+    language: 'en',
+    components: [
+      {
+        type: 'BODY',
+        text: 'Namaste! Your VAT return for {{1}} is due on {{2}}. Reply here to review the numbers before you file.',
+        example: { body_text: [['Shrawan 2082', '25 Bhadra']] },
+      },
+    ],
+  },
+  {
+    name: 'return_prepared',
+    category: 'UTILITY',
+    language: 'en',
+    components: [
+      {
+        type: 'BODY',
+        text: 'Your {{1}} VAT return is ready: net payable Rs {{2}}. Reply "show" to review it before filing.',
+        example: { body_text: [['Shrawan 2082', '12,340.00']] },
+      },
+    ],
+  },
+  {
+    name: 'pairing_code',
+    category: 'UTILITY',
+    language: 'en',
+    components: [
+      {
+        type: 'BODY',
+        text: 'Welcome to HisabKitab! To connect your business, reply: START {{1}}. The code expires in 15 minutes.',
+        example: { body_text: [['4821']] },
+      },
+    ],
+  },
+];
+
+export async function submitTemplates(opts: {
+  businessAccountId: string;
+  accessToken: string;
+  graphVersion?: string;
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<{ name: string; ok: boolean; detail: string }[]> {
+  const base = (opts.baseUrl ?? 'https://graph.facebook.com').replace(/\/$/, '');
+  const version = opts.graphVersion ?? 'v23.0';
+  const doFetch = opts.fetchImpl ?? fetch;
+  const results: { name: string; ok: boolean; detail: string }[] = [];
+  for (const tpl of TEMPLATES) {
+    const res = await doFetch(`${base}/${version}/${opts.businessAccountId}/message_templates`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${opts.accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(tpl),
+    });
+    const detail = (await res.text()).slice(0, 300);
+    results.push({ name: tpl.name, ok: res.ok, detail });
+  }
+  return results;
+}
+
+const isDirectRun =
+  process.argv[1] !== undefined &&
+  import.meta.url === new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href;
+
+if (isDirectRun) {
+  const businessAccountId = process.env['WA_BUSINESS_ACCOUNT_ID'];
+  const accessToken = process.env['WA_ACCESS_TOKEN'];
+  if (!businessAccountId || !accessToken) {
+    console.error('WA_BUSINESS_ACCOUNT_ID and WA_ACCESS_TOKEN are required');
+    process.exit(1);
+  }
+  const results = await submitTemplates({ businessAccountId, accessToken });
+  for (const r of results) console.log(`${r.ok ? 'submitted' : 'FAILED'}  ${r.name}  ${r.detail}`);
+  process.exit(results.every((r) => r.ok) ? 0 : 1);
+}

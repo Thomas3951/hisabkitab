@@ -15,7 +15,20 @@ owner's confirmation. The agent shows its work, flags anything it's unsure about
 - `docs/nepali-smb-finance-agent-PRD*.md` — v1.0 base, v1.1 (safety + verified tax, authoritative),
   v1.2 (reports module), v2.0 (commercialization — build after the pilot).
 
-## Status — Phase 0 + Phase 1 + Phase 2 complete
+## Status — Phases 0–3 complete
+
+**Phase 3** ships the WhatsApp layer in `packages/orchestrator`: a Fastify webhook server
+(Meta handshake + `X-Hub-Signature-256` verified over the raw bytes), zod-parsed inbound
+envelopes, **exactly-once** processing (Meta retries dedupe on the `wa_events` PK), per-tenant
+message serialization, onboarding/pairing ("START 4821" binds the number, activates the tenant,
+consumes the code, audit-logs), a persistent per-tenant session registry (`tenant_sessions`),
+media→Files (Graph download → Files API → container mount at `/workspace/inbox/...`), outbound
+replies through the Audit Gate, and the three Utility templates ready to submit
+(`templates:submit`). Migration `0002` adds the `hisab_orch` webhook role (cross-tenant by
+design — the orchestrator mints the tenant tokens) while `hisab_app` stays RLS-scoped.
+Verified live (`verify:wa -- --live`, 9/9): signed webhook → pairing → real agent session →
+a blank "bill" image was mounted into the container and the agent **asked for a clearer photo
+instead of inventing data**.
 
 **Phase 2** ships `packages/orchestrator`: the Managed Agents agent definition (frozen system
 prompt, ledger MCP wiring, the three skills synced via the Skills API), idempotent one-time
@@ -56,4 +69,5 @@ pnpm typecheck   # tsc --strict
 ```
 
 ## Next
-Phase 3: WhatsApp Cloud API webhook, media→Files, onboarding/pairing; submit Utility templates early.
+Phase 4: bill-extraction confirmation loop end-to-end (test with real messy bills). Requires a
+Meta business + number (webhook is ready) and a public https deployment of the Ledger MCP.
