@@ -1,0 +1,28 @@
+{
+  "name": "@hisab/orchestrator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "agent:setup": "tsx src/agent/setup.ts",
+    "verify:live": "tsx src/verify-live.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.1",
+    "@hisab/db": "workspace:*",
+    "@hisab/mcp-ledger": "workspace:*",
+    "@hisab/shared": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.8"
+  }
+}

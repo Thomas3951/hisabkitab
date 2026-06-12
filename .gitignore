@@ -6,4 +6,5 @@ coverage/
 .env.*
 !.env.example
 manual.txt
+*.local.json
 .DS_Store

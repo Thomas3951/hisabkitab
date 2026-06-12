@@ -15,7 +15,17 @@ owner's confirmation. The agent shows its work, flags anything it's unsure about
 - `docs/nepali-smb-finance-agent-PRD*.md` — v1.0 base, v1.1 (safety + verified tax, authoritative),
   v1.2 (reports module), v2.0 (commercialization — build after the pilot).
 
-## Status — Phase 0 + Phase 1 complete
+## Status — Phase 0 + Phase 1 + Phase 2 complete
+
+**Phase 2** ships `packages/orchestrator`: the Managed Agents agent definition (frozen system
+prompt, ledger MCP wiring, the three skills synced via the Skills API), idempotent one-time
+`agent:setup` (skills → environment → agent), per-tenant **vaults** holding the HMAC-signed
+ledger bearer, the session client (stream-first event loop, one session = one tenant), and the
+**Pre-delivery Audit Gate** in the relay path — every outbound money figure must be traceable to
+a same-turn ledger tool result or the message is held, the agent is told to re-verify or ask the
+owner, and the decision is logged to `audit_log`. Verified live against the real API
+(`pnpm --filter @hisab/orchestrator verify:live -- --session`): the scope guardrail declined an
+off-topic question, and the gate held an unverified VAT figure end-to-end.
 
 **Phase 1** ships `packages/db` (Postgres 16+ schema via drizzle, **Row-Level Security** on every
 tenant table — fails closed, app role cannot bypass) and `packages/mcp-ledger` (a tenant-bound MCP
@@ -46,5 +56,4 @@ pnpm typecheck   # tsc --strict
 ```
 
 ## Next
-Phase 2: Managed Agents agent definition + 3 skills + system prompt; orchestrator session client;
-Pre-delivery Audit Gate in the relay path.
+Phase 3: WhatsApp Cloud API webhook, media→Files, onboarding/pairing; submit Utility templates early.

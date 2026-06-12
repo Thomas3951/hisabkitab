@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    // @anthropic-ai/sdk types declare `prop: T | undefined` where interfaces say
+    // `prop?: T` — incompatible with exactOptionalPropertyTypes (same as mcp-ledger).
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["src", "test"]
+}

@@ -2,9 +2,12 @@
  * Remote MCP entrypoint (Streamable HTTP, stateless mode — one server per request,
  * which also guarantees per-request tenant scoping).
  *
- * Auth (both required):
- *   Authorization: Bearer ${LEDGER_MCP_TOKEN}     — service token (vault-held)
- *   x-hisab-tenant: <signed token>                — HMAC-signed tenant session metadata
+ * Auth — two accepted shapes:
+ *   (a) Authorization: Bearer <signed tenant token>      — what Managed Agents vaults
+ *       inject (a vault credential can only set the Authorization header); the token
+ *       itself is HMAC-signed tenant session metadata, so it authenticates AND scopes.
+ *   (b) Authorization: Bearer ${LEDGER_MCP_TOKEN} + x-hisab-tenant: <signed token>
+ *       — service-token shape for first-party callers/tests.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -45,14 +48,23 @@ export function startHttpServer(port: number): ReturnType<typeof createServer> {
   const httpServer = createServer(async (req, res) => {
     if (req.url !== '/mcp' || req.method !== 'POST') return deny(res, 404, 'not found');
     const auth = req.headers.authorization ?? '';
-    if (!auth.startsWith('Bearer ') || !safeEqual(auth.slice(7), serviceToken)) {
-      return deny(res, 401, 'invalid service token');
-    }
+    if (!auth.startsWith('Bearer ')) return deny(res, 401, 'missing bearer token');
+    const bearer = auth.slice(7);
     let tenantId: string;
-    try {
-      tenantId = verifyTenantToken(String(req.headers['x-hisab-tenant'] ?? ''), signingSecret);
-    } catch (err) {
-      return deny(res, 401, err instanceof AuthError ? err.message : 'invalid tenant token');
+    if (safeEqual(bearer, serviceToken)) {
+      // shape (b): service token + tenant header
+      try {
+        tenantId = verifyTenantToken(String(req.headers['x-hisab-tenant'] ?? ''), signingSecret);
+      } catch (err) {
+        return deny(res, 401, err instanceof AuthError ? err.message : 'invalid tenant token');
+      }
+    } else {
+      // shape (a): the bearer IS the signed tenant token (vault-injected)
+      try {
+        tenantId = verifyTenantToken(bearer, signingSecret);
+      } catch (err) {
+        return deny(res, 401, err instanceof AuthError ? err.message : 'invalid bearer token');
+      }
     }
     try {
       const server = buildLedgerServer({ db }, tenantId);
