@@ -5,8 +5,17 @@
  */
 import { SYSTEM_PROMPT } from './system-prompt.js';
 
-/** Reasoning quality matters for money (v1.0 §6); downshift only after evals. */
-export const HISAB_MODEL = 'claude-opus-4-8';
+/**
+ * Reasoning quality matters for money (v1.0 §6), so PRODUCTION pins Opus. But
+ * Opus is costly to iterate on, so the model is config (HISAB_MODEL env), not a
+ * literal: develop on cheap Sonnet, pin Opus for the pilot. Cost is a feature
+ * (CLAUDE.md §3 / v2.0 §7).
+ *   HISAB_MODEL=claude-sonnet-4-6  → dev / cheap
+ *   HISAB_MODEL=claude-opus-4-8    → production money-grade reasoning (default)
+ */
+export const DEFAULT_HISAB_MODEL = 'claude-opus-4-8';
+export const DEV_HISAB_MODEL = 'claude-sonnet-4-6';
+export const HISAB_MODEL = process.env['HISAB_MODEL']?.trim() || DEFAULT_HISAB_MODEL;
 export const LEDGER_MCP_NAME = 'ledger';
 export const PAYMENTS_MCP_NAME = 'payments';
 

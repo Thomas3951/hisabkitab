@@ -15,6 +15,33 @@ owner's confirmation. The agent shows its work, flags anything it's unsure about
 - `docs/nepali-smb-finance-agent-PRD*.md` — v1.0 base, v1.1 (safety + verified tax, authoritative),
   v1.2 (reports module), v2.0 (commercialization — build after the pilot).
 
+## Status — Phases 0–6 complete
+
+**Phase 6** ships the monthly VAT-return reminder scheduler in
+`packages/orchestrator/src/scheduler/` (PRD v1.1 Phase 6 / §11). A **BullMQ +
+Redis** repeatable job runs daily and, for the BS month that just ended, for each
+active VAT-registered tenant: runs the deterministic `generate_return_summary`
+(no agent, no API spend), then **independently self-verifies** the figures
+(`self-verify.ts` re-derives `net_payable == max(Σ confirmed sales.vat − Σ
+eligible input_vat, 0)`, `is_nil`, and that no entry has an unresolved `fail`) —
+PASS → send the `return_prepared` Utility template with the net payable; not-PASS
+→ **HOLD the numbers** and send the figure-free `vat_due_soon` deadline nudge,
+flagged for review (never state an unverified figure). Exactly-once is owned by
+the DB (`reminder_log` unique `(tenant, bs_year, bs_month, kind)`, migration
+0004), NOT the queue — so the daily tick is idempotent, a down day recovers the
+next, and retries/replicas never double-send. Migration 0005 grants `hisab_orch`
+read access to `expenses`/`validation_events` for the cross-tenant self-verify.
+Consent is untouched: a reminder only prepares + nudges; the owner still gives an
+explicit "✅" before `mark_return_filed_by_user`. **7 contract tests** (real
+Postgres, the real ledger summary + self-verify, captured sends) + a runtime
+harness (`verify:scheduler`, **4/4 PASS** against live Redis incl. the BullMQ
+round-trip and a self-verify-holds-a-lie probe) — all local, no API spend. The
+agent **model is now config** (`HISAB_MODEL`): cheap Sonnet for dev, Opus for the
+pilot. Verified once against the **real Managed Agents API** on Sonnet
+(`verify:live --session`, 4/4): the live agent declined an off-topic question and
+**refused to state an unverified VAT figure with the ledger unreachable** (the
+Audit Gate held end-to-end).
+
 ## Status — Phases 0–5 complete
 
 **Phase 5** ships `packages/mcp-payments`: a tenant-bound Payments MCP over Streamable HTTP
@@ -106,8 +133,9 @@ pnpm typecheck   # tsc --strict
 ```
 
 ## Next
-Phase 6: monthly VAT-return reminder scheduler + session self-verification. Still external (not
-code): Meta business verification + number (webhook is ready), Khalti **merchant onboarding**
-(sandbox at `test-admin.khalti.com`; production needs the MOU docs — see `manual.txt`), and a public
-https deployment of the Ledger + Payments MCP servers. The gitignored `manual.txt` holds the setup
-manual and the Khalti sandbox/production details.
+Phase 7 (v1.1) — hardening & pilot: credential-scrubbing guard, tenant data-deletion path,
+rate-limit/retry handling; then pilot 5–10 cafés, VAT-only, one city. Still external (not code):
+Meta business verification + number (webhook is ready), Khalti **merchant onboarding** (sandbox at
+`test-admin.khalti.com`; production needs the MOU docs — see `manual.txt`), a Redis instance for the
+scheduler, and a public https deployment of the Ledger + Payments MCP servers. The gitignored
+`manual.txt` holds the setup manual and the Khalti sandbox/production details.

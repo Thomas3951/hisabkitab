@@ -192,3 +192,30 @@ export const payments = pgTable('payments', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ----- Phase 6: monthly VAT-return reminder scheduler -----
+
+/**
+ * Exactly-once latch for proactive reminders. The unique (tenant, bs_year,
+ * bs_month, kind) guarantees a given reminder is sent at most once however many
+ * times the BullMQ job ticks/retries. Written by the orchestrator (hisab_orch),
+ * like wa_events — never the RLS app role.
+ */
+export const reminderLog = pgTable(
+  'reminder_log',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    bsYear: integer('bs_year').notNull(),
+    bsMonth: integer('bs_month').notNull(),
+    kind: text('kind', { enum: ['return_prepared', 'vat_due_soon'] }).notNull(),
+    verdict: text('verdict', { enum: ['PASS', 'FAIL', 'BLOCKED'] }).notNull(),
+    netPayablePaisa: bigint('net_payable_paisa', { mode: 'bigint' }),
+    isNil: boolean('is_nil'),
+    detail: text('detail'),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('reminder_log_tenant_id_bs_year_bs_month_kind_key').on(t.tenantId, t.bsYear, t.bsMonth, t.kind)],
+);

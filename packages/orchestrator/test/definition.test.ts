@@ -2,9 +2,11 @@
  * Agent definition + system prompt invariants, incl. the PROBE that a non-https
  * ledger URL (tokens travel on it) must be rejected.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildAgentConfig,
+  DEFAULT_HISAB_MODEL,
+  DEV_HISAB_MODEL,
   HISAB_MODEL,
   LEDGER_MCP_NAME,
   PAYMENTS_MCP_NAME,
@@ -17,6 +19,30 @@ const skillIds = {
   billExtraction: 'skill_c',
   nepalPayments: 'skill_d',
 };
+
+describe('model is config, not a literal (dev = cheap, prod = Opus)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('defaults to the production money-grade model when HISAB_MODEL is unset', async () => {
+    vi.stubEnv('HISAB_MODEL', '');
+    vi.resetModules();
+    const m = await import('../src/agent/definition.js');
+    expect(m.HISAB_MODEL).toBe(DEFAULT_HISAB_MODEL);
+    expect(m.HISAB_MODEL).toBe('claude-opus-4-8');
+  });
+
+  it('uses the cheap dev model when HISAB_MODEL=claude-sonnet-4-6 (low dev cost)', async () => {
+    vi.stubEnv('HISAB_MODEL', DEV_HISAB_MODEL);
+    vi.resetModules();
+    const m = await import('../src/agent/definition.js');
+    expect(m.HISAB_MODEL).toBe('claude-sonnet-4-6');
+    const cfg = m.buildAgentConfig({ ledgerMcpUrl: 'https://ledger.example/mcp', skillIds });
+    expect(cfg.model).toBe('claude-sonnet-4-6');
+  });
+});
 
 describe('buildAgentConfig', () => {
   it('wires model, prompt, ledger MCP and the four skills', () => {

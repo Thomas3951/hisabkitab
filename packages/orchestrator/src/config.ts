@@ -16,6 +16,14 @@ const envSchema = z.object({
   WA_APP_SECRET: z.string().min(8),
   WA_GRAPH_BASE_URL: z.string().url().optional(), // stub override for verification
   PORT: z.coerce.number().int().positive().default(8810),
+  // ---- Phase 6: reminder scheduler ----
+  REDIS_URL: z.string().url().default('redis://127.0.0.1:6379'),
+  // Run the BullMQ reminder worker in this process (set 0 on webhook-only nodes).
+  SCHEDULER_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v !== '0' && v?.toLowerCase() !== 'false'),
+  REMINDER_CRON: z.string().optional(),
 });
 
 export type OrchestratorConfig = z.infer<typeof envSchema> & {

@@ -16,19 +16,22 @@
     "fixtures:bills": "tsx src/bills/generate-fixtures.ts",
     "verify:bills": "tsx src/verify-bills.ts",
     "verify:live": "tsx src/verify-live.ts",
-    "verify:wa": "tsx src/verify-wa.ts"
+    "verify:wa": "tsx src/verify-wa.ts",
+    "verify:scheduler": "tsx src/scheduler/verify-scheduler.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
     "@hisab/db": "workspace:*",
     "@hisab/mcp-ledger": "workspace:*",
     "@hisab/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "bullmq": "^5.34.0",
     "drizzle-orm": "0.45.2",
     "fastify": "^5.8.5",
+    "ioredis": "^5.4.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "postgres": "^3.4.9",
     "sharp": "^0.35.1",
     "tsx": "^4.20.0",
