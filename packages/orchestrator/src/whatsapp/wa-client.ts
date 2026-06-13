@@ -5,7 +5,12 @@
  *
  * `baseUrl` is injectable so tests/verification drive a local stub instead of
  * graph.facebook.com — the client code path stays identical.
+ *
+ * Transient Graph failures (429 / 5xx / network) are retried with backoff
+ * (PRD §7 Phase 7); a 4xx (bad token / bad request) fails fast.
  */
+import { withRetry } from '../resilience/retry.js';
+
 export interface WaClientOptions {
   phoneNumberId: string;
   accessToken: string;
@@ -13,6 +18,8 @@ export interface WaClientOptions {
   graphVersion?: string;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  /** retry attempts for transient Graph failures (default 3; set 1 to disable). */
+  retryAttempts?: number;
 }
 
 export interface WaMediaMeta {
@@ -43,18 +50,25 @@ export class WaClient {
   }
 
   private async request(path: string, init: RequestInit): Promise<unknown> {
-    const res = await this.fetch(`${this.base}/${this.version}${path}`, {
-      ...init,
-      headers: {
-        authorization: `Bearer ${this.opts.accessToken}`,
-        'content-type': 'application/json',
-        ...(init.headers ?? {}),
+    // Retry only transient failures (429/5xx/network). A WaError carries .status,
+    // so a 4xx (bad token / bad payload) fails fast instead of burning retries.
+    return withRetry(
+      async () => {
+        const res = await this.fetch(`${this.base}/${this.version}${path}`, {
+          ...init,
+          headers: {
+            authorization: `Bearer ${this.opts.accessToken}`,
+            'content-type': 'application/json',
+            ...(init.headers ?? {}),
+          },
+        });
+        if (!res.ok) {
+          throw new WaError(`graph ${path} → ${res.status}: ${(await res.text()).slice(0, 300)}`, res.status);
+        }
+        return res.json();
       },
-    });
-    if (!res.ok) {
-      throw new WaError(`graph ${path} → ${res.status}: ${(await res.text()).slice(0, 300)}`, res.status);
-    }
-    return res.json();
+      { attempts: this.opts.retryAttempts ?? 3 },
+    );
   }
 
   /** Free-form text inside the 24h service window. `to` is E.164 (with or without '+'). */

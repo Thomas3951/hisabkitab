@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-commit.sh\"",
+            "timeout": 15,
+            "statusMessage": "Guarding commit (secrets + money-safety)…"
+          }
+        ]
+      }
+    ]
+  }
+}

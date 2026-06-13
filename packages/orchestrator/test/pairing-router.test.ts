@@ -14,6 +14,7 @@ import {
 } from '../src/onboarding/pairing.js';
 import { processInbound, SerialQueues, UNSUPPORTED_REPLY, type RouterDeps } from '../src/whatsapp/router.js';
 import { MemoryGateLogger } from '../src/audit/audit-logger.js';
+import { TenantRateLimiter } from '../src/resilience/rate-limit.js';
 import type { WaClient } from '../src/whatsapp/wa-client.js';
 import type { InboundMessage } from '../src/whatsapp/inbound.js';
 import { ADMIN_URL, ORCH_URL } from './urls.js';
@@ -133,6 +134,50 @@ describe('processInbound routing', () => {
       media: { mediaId: 'm', mimeType: 'audio/ogg' },
     });
     expect(sent[0]?.body).toBe(UNSUPPORTED_REPLY);
+  });
+
+  it('PROBE: a credential (OTP) is refused BEFORE reaching the agent, and audit-logged', async () => {
+    const [t3] = await admin.db
+      .insert(schema.tenants)
+      .values({ businessName: 'Secret Pasal', panOrVatNo: '600000003' })
+      .returning({ id: schema.tenants.id });
+    const id3 = (t3 as { id: string }).id;
+    const code = await issuePairingCode(orch.db, id3);
+    await handleUnknownSender(orch.db, '+9779806666666', `START ${code}`);
+
+    const sent: { to: string; body: string }[] = [];
+    // anthropic is {} in makeDeps — if the guard FAILED to short-circuit, the
+    // session call would throw. A clean refusal proves the agent was never reached.
+    const ok = await processInbound(makeDeps(sent), textMsg('wamid.cred1', '+9779806666666', 'my OTP is 482913'));
+    expect(ok).toBe(true);
+    expect(sent[0]?.body).toMatch(/never send passwords/i);
+    expect(sent[0]?.body).not.toContain('482913'); // secret never echoed
+
+    const audits = await admin.db.select().from(schema.auditLog).where(eq(schema.auditLog.tenantId, id3));
+    const blocked = audits.find((a) => a.action === 'credential_blocked');
+    expect(blocked).toBeTruthy();
+    expect(JSON.stringify(blocked!.detail)).not.toContain('482913'); // not persisted raw
+  });
+
+  it('PROBE: a per-tenant rate limit throttles a burst (cost guard), then the nudge is sent', async () => {
+    const [t4] = await admin.db
+      .insert(schema.tenants)
+      .values({ businessName: 'Flood Pasal', panOrVatNo: '600000004' })
+      .returning({ id: schema.tenants.id });
+    const code = await issuePairingCode(orch.db, (t4 as { id: string }).id);
+    await handleUnknownSender(orch.db, '+9779805555555', `START ${code}`);
+
+    const sent: { to: string; body: string }[] = [];
+    const deps: RouterDeps = { ...makeDeps(sent), rateLimiter: new TenantRateLimiter({ capacity: 2, refillPerSec: 0 }) };
+    // capacity 2 → first two pass to the (stubbed) agent path; the 3rd is throttled.
+    // anthropic is {} so a non-throttled message would throw — but a plain "hello"
+    // with no media reaches getOrCreateTenantSession; to keep this unit on the
+    // rate path we send greetings that the agent path would handle, and assert the
+    // 3rd gets the rate-limited reply.
+    await processInbound(deps, textMsg('wamid.f1', '+9779805555555', 'hi')).catch(() => undefined);
+    await processInbound(deps, textMsg('wamid.f2', '+9779805555555', 'hi')).catch(() => undefined);
+    await processInbound(deps, textMsg('wamid.f3', '+9779805555555', 'hi')).catch(() => undefined);
+    expect(sent.some((s) => /sending messages very quickly/i.test(s.body))).toBe(true);
   });
 });
 

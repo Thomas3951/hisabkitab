@@ -19,6 +19,8 @@ import {
   pairedWelcome,
 } from '../onboarding/pairing.js';
 import { attachInboundMedia } from './media.js';
+import { scanForCredentials, CREDENTIAL_REFUSAL } from '../security/credential-guard.js';
+import { TenantRateLimiter, RATE_LIMITED_REPLY } from '../resilience/rate-limit.js';
 import type { InboundMessage } from './inbound.js';
 import type { WaClient } from './wa-client.js';
 
@@ -46,6 +48,8 @@ export interface RouterDeps extends SessionStoreDeps {
   log?: (msg: string) => void;
   /** Per-turn hard cap, ms; default 10 min (see runTurn). */
   turnTimeoutMs?: number;
+  /** Per-tenant inbound rate limiter (cost guard). Omitted = no limiting. */
+  rateLimiter?: TenantRateLimiter;
 }
 
 export const UNSUPPORTED_REPLY =
@@ -86,8 +90,35 @@ export async function processInbound(deps: RouterDeps, msg: InboundMessage): Pro
       return true;
     }
 
+    // Rate-limit (cost guard, PRD §7): a flood from one number must not run
+    // unbounded agent turns. Over-limit → friendly nudge, no session started.
+    if (deps.rateLimiter) {
+      const decision = deps.rateLimiter.take(tenant.tenantId);
+      if (!decision.allowed) {
+        deps.log?.(`rate-limited ${msg.fromE164} (retry in ${decision.retryAfterMs}ms)`);
+        await deps.wa.sendText(msg.fromE164, RATE_LIMITED_REPLY);
+        return true;
+      }
+    }
+
     if (msg.kind === 'audio' || msg.kind === 'unsupported') {
       await deps.wa.sendText(msg.fromE164, UNSUPPORTED_REPLY);
+      return true;
+    }
+
+    // Credential-scrub (PRD §14): refuse passwords/OTPs/logins BEFORE the message
+    // reaches the agent session or any audit row. We never relay or persist the
+    // secret — only a redacted preview is logged for ops.
+    const cred = scanForCredentials(msg.text);
+    if (cred.blocked) {
+      deps.log?.(`credential blocked for ${msg.fromE164} [${cred.kinds.join(',')}]: ${cred.redactedPreview}`);
+      await deps.db.insert(schema.auditLog).values({
+        tenantId: tenant.tenantId,
+        actor: 'system',
+        action: 'credential_blocked',
+        detail: { kinds: cred.kinds, preview: cred.redactedPreview },
+      });
+      await deps.wa.sendText(msg.fromE164, CREDENTIAL_REFUSAL);
       return true;
     }
 

@@ -219,3 +219,21 @@ export const reminderLog = pgTable(
   },
   (t) => [uniqueIndex('reminder_log_tenant_id_bs_year_bs_month_kind_key').on(t.tenantId, t.bsYear, t.bsMonth, t.kind)],
 );
+
+// ----- Phase 7 (hardening): tenant data-deletion proof -----
+
+/**
+ * Proof that a tenant's "delete my data" request was honored. Deliberately has
+ * NO foreign key to tenants — the tenant row is deleted, but this record must
+ * survive it (data-free: counts + ids only, never the deleted content). Written
+ * by the orchestrator (hisab_orch).
+ */
+export const deletionLog = pgTable('deletion_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(), // no FK — the tenant is gone
+  reason: text('reason').notNull(),
+  rowsDeleted: integer('rows_deleted').notNull(),
+  sessionsDeleted: integer('sessions_deleted').notNull().default(0),
+  detail: jsonb('detail'),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }).notNull().defaultNow(),
+});

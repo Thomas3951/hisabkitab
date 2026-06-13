@@ -11,6 +11,7 @@ import { SerialQueues } from './whatsapp/router.js';
 import { buildServer } from './server.js';
 import { startScheduler, type SchedulerHandle } from './scheduler/queue.js';
 import { createLedgerSummaryProvider } from './scheduler/ledger-summary.js';
+import { TenantRateLimiter } from './resilience/rate-limit.js';
 
 const config = await loadConfig();
 const handle = createDb(config.DATABASE_URL);
@@ -31,6 +32,7 @@ const app = buildServer({
     wa,
     gateLogger: new DbGateLogger(config.DATABASE_URL),
     queues: new SerialQueues(),
+    rateLimiter: new TenantRateLimiter(), // per-tenant inbound cost guard
     agentId: config.AGENT_ID,
     environmentId: config.ENVIRONMENT_ID,
     ledgerMcpUrl: config.LEDGER_MCP_URL,
