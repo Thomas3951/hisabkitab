@@ -26,10 +26,20 @@ pnpm build && pnpm start          # production
 Or from the repo root, run the **whole stack** (landing + all backend services):
 
 ```sh
+# one-time: create the local .env (gitignored) from the template, then fill it
+cp .env.example .env   # the committed .env.example has safe local defaults
+#  → set ANTHROPIC_API_KEY to your real key for live agent sessions
+#  → local DB roles/Redis already match (see manual.txt)
+
 pnpm dev          # landing + ledger MCP + payments MCP + webhook, color-coded
 pnpm dev:landing  # just the landing page
 pnpm dev:backend  # just the three backend services
+pnpm khalti:stub  # optional: local Khalti gateway on :8851 for end-to-end payments
 ```
+
+The backend `start` scripts auto-load the root `.env` (`tsx --env-file-if-exists`).
+Without `ANTHROPIC_API_KEY` the MCP servers + scheduler still boot; only live agent
+turns need the real key. Ports: landing 3000, ledger 8801, payments 8802, webhook 8810.
 
 ## Deploy (Vercel)
 Set the **Root Directory** to `landing` in the Vercel project settings; framework

@@ -10,7 +10,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "start": "tsx src/http.ts",
+    "start": "tsx --env-file-if-exists=../../.env src/http.ts",
     "verify": "tsx src/verify-http.ts"
   },
   "dependencies": {

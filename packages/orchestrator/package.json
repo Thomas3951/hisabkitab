@@ -10,8 +10,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "agent:setup": "tsx src/agent/setup.ts",
-    "start": "tsx src/main.ts",
+    "agent:setup": "tsx --env-file-if-exists=../../.env src/agent/setup.ts",
+    "start": "tsx --env-file-if-exists=../../.env src/main.ts",
     "templates:submit": "tsx src/whatsapp/templates.ts",
     "fixtures:bills": "tsx src/bills/generate-fixtures.ts",
     "verify:bills": "tsx src/verify-bills.ts",
