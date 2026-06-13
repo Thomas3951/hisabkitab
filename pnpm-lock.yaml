@@ -68,6 +68,40 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(vite@8.0.16(esbuild@0.28.0)(tsx@4.22.4))
 
+  packages/mcp-payments:
+    dependencies:
+      '@hisab/db':
+        specifier: workspace:*
+        version: link:../db
+      '@hisab/mcp-ledger':
+        specifier: workspace:*
+        version: link:../mcp-ledger
+      '@hisab/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(postgres@3.4.9)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
+      tsx:
+        specifier: ^4.20.0
+        version: 4.22.4
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(vite@8.0.16(esbuild@0.28.0)(tsx@4.22.4))
+
   packages/orchestrator:
     dependencies:
       '@anthropic-ai/sdk':

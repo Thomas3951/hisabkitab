@@ -162,3 +162,33 @@ export const tenantSessions = pgTable('tenant_sessions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ----- Phase 5 (Payments): Khalti v2 live; eSewa/Fonepay coming soon -----
+
+/**
+ * One row per initiated payment. `pidx` is UNIQUE — replayed callbacks /
+ * double verifies can never complete a payment twice; `saleId` being set is
+ * the idempotency latch for the confirmed gateway sale.
+ */
+export const payments = pgTable('payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenants.id),
+  provider: text('provider').notNull().default('khalti'),
+  pidx: text('pidx').notNull().unique(),
+  purchaseOrderId: text('purchase_order_id').notNull(),
+  purchaseOrderName: text('purchase_order_name').notNull(),
+  amountPaisa: bigint('amount_paisa', { mode: 'bigint' }).notNull(),
+  status: text('status', {
+    enum: ['initiated', 'completed', 'canceled', 'expired', 'refunded', 'amount_mismatch'],
+  })
+    .notNull()
+    .default('initiated'),
+  transactionId: text('transaction_id'),
+  feePaisa: bigint('fee_paisa', { mode: 'bigint' }).notNull().default(0n),
+  saleId: uuid('sale_id').references(() => sales.id),
+  paymentUrl: text('payment_url'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

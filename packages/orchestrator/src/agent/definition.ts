@@ -8,23 +8,42 @@ import { SYSTEM_PROMPT } from './system-prompt.js';
 /** Reasoning quality matters for money (v1.0 §6); downshift only after evals. */
 export const HISAB_MODEL = 'claude-opus-4-8';
 export const LEDGER_MCP_NAME = 'ledger';
+export const PAYMENTS_MCP_NAME = 'payments';
 
 export interface SkillRefs {
   nepalVat: string;
   nepalTds: string;
   billExtraction: string;
+  nepalPayments: string;
 }
 
 export interface AgentConfigInput {
   ledgerMcpUrl: string;
+  /** Phase 5: Khalti payments MCP. Optional so pre-Phase-5 setups still work. */
+  paymentsMcpUrl?: string;
   skillIds: SkillRefs;
 }
 
-export function buildAgentConfig(input: AgentConfigInput) {
-  const url = new URL(input.ledgerMcpUrl); // throws on garbage
+function requireHttps(rawUrl: string, label: string): void {
+  const url = new URL(rawUrl); // throws on garbage
   if (url.protocol !== 'https:') {
-    throw new Error(`ledger MCP URL must be https (got ${url.protocol}//) — tokens travel on it`);
+    throw new Error(`${label} MCP URL must be https (got ${url.protocol}//) — tokens travel on it`);
   }
+}
+
+export function buildAgentConfig(input: AgentConfigInput) {
+  requireHttps(input.ledgerMcpUrl, 'ledger');
+  if (input.paymentsMcpUrl) requireHttps(input.paymentsMcpUrl, 'payments');
+
+  // A tenant-scoped MCP toolset: our tools, owner consent modeled in the tool
+  // semantics (draft→confirm / owner_approved), so always_allow — otherwise the
+  // toolset defaults to always_ask and every call stalls the session.
+  const tenantToolset = (name: string) =>
+    ({
+      type: 'mcp_toolset' as const,
+      mcp_server_name: name,
+      default_config: { enabled: true, permission_policy: { type: 'always_allow' as const } },
+    }) as const;
   return {
     name: 'HisabKitab Bookkeeper',
     description:
@@ -35,25 +54,22 @@ export function buildAgentConfig(input: AgentConfigInput) {
     tools: [
       // bash + file ops (build PDFs, parse files), web_search/web_fetch (confirm IRD deadlines)
       { type: 'agent_toolset_20260401' as const, default_config: { enabled: true } },
-      {
-        type: 'mcp_toolset' as const,
-        mcp_server_name: LEDGER_MCP_NAME,
-        // These are OUR tenant-scoped tools; owner-level consent lives in the
-        // tool semantics (draft→confirm_entry), not in per-call confirmations.
-        // Without this the toolset defaults to always_ask and every ledger
-        // call stalls the session waiting for a user.tool_confirmation.
-        default_config: { enabled: true, permission_policy: { type: 'always_allow' as const } },
-      },
+      tenantToolset(LEDGER_MCP_NAME),
+      ...(input.paymentsMcpUrl ? [tenantToolset(PAYMENTS_MCP_NAME)] : []),
     ],
     mcp_servers: [
       // No auth here — per-tenant signed bearer tokens live in vaults, attached per session.
       { type: 'url' as const, name: LEDGER_MCP_NAME, url: input.ledgerMcpUrl },
+      ...(input.paymentsMcpUrl
+        ? [{ type: 'url' as const, name: PAYMENTS_MCP_NAME, url: input.paymentsMcpUrl }]
+        : []),
     ],
     skills: [
       { type: 'custom' as const, skill_id: input.skillIds.nepalVat, version: 'latest' },
       { type: 'custom' as const, skill_id: input.skillIds.nepalTds, version: 'latest' },
       { type: 'custom' as const, skill_id: input.skillIds.billExtraction, version: 'latest' },
+      { type: 'custom' as const, skill_id: input.skillIds.nepalPayments, version: 'latest' },
     ],
-    metadata: { project: 'hisabkitab', phase: '2' },
+    metadata: { project: 'hisabkitab', phase: '5' },
   };
 }

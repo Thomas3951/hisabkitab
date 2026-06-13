@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import Anthropic, { toFile } from '@anthropic-ai/sdk';
 import type { SkillRefs } from './definition.js';
 
-export const SKILL_DIRS = ['nepal-vat', 'nepal-tds', 'bill-extraction'] as const;
+export const SKILL_DIRS = ['nepal-vat', 'nepal-tds', 'bill-extraction', 'nepal-payments'] as const;
 type SkillDir = (typeof SKILL_DIRS)[number];
 
 async function skillFiles(skillsRoot: string, dir: SkillDir) {
@@ -48,5 +48,6 @@ export async function syncSkills(
     nepalVat: ids['nepal-vat'],
     nepalTds: ids['nepal-tds'],
     billExtraction: ids['bill-extraction'],
+    nepalPayments: ids['nepal-payments'],
   };
 }

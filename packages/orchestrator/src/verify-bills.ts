@@ -33,7 +33,7 @@ import { SerialQueues } from './whatsapp/router.js';
 import { DbGateLogger } from './audit/audit-logger.js';
 import { issuePairingCode } from './onboarding/pairing.js';
 import { setup } from './agent/setup.js';
-import { BILL_FIXTURES, fixtureById, type BillFixture } from './bills/fixtures.js';
+import { fixtureById, type BillFixture } from './bills/fixtures.js';
 import { generateBillFixtures } from './bills/generate-fixtures.js';
 
 const ADMIN_URL =

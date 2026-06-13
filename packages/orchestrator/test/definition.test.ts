@@ -3,20 +3,30 @@
  * ledger URL (tokens travel on it) must be rejected.
  */
 import { describe, expect, it } from 'vitest';
-import { buildAgentConfig, HISAB_MODEL, LEDGER_MCP_NAME } from '../src/agent/definition.js';
+import {
+  buildAgentConfig,
+  HISAB_MODEL,
+  LEDGER_MCP_NAME,
+  PAYMENTS_MCP_NAME,
+} from '../src/agent/definition.js';
 import { SYSTEM_PROMPT, PRODUCT_NAME } from '../src/agent/system-prompt.js';
 
-const skillIds = { nepalVat: 'skill_a', nepalTds: 'skill_b', billExtraction: 'skill_c' };
+const skillIds = {
+  nepalVat: 'skill_a',
+  nepalTds: 'skill_b',
+  billExtraction: 'skill_c',
+  nepalPayments: 'skill_d',
+};
 
 describe('buildAgentConfig', () => {
-  it('wires model, prompt, ledger MCP and the three skills', () => {
+  it('wires model, prompt, ledger MCP and the four skills', () => {
     const cfg = buildAgentConfig({ ledgerMcpUrl: 'https://ledger.example/mcp', skillIds });
     expect(cfg.model).toBe(HISAB_MODEL);
     expect(cfg.system).toBe(SYSTEM_PROMPT);
     expect(cfg.mcp_servers).toEqual([
       { type: 'url', name: LEDGER_MCP_NAME, url: 'https://ledger.example/mcp' },
     ]);
-    expect(cfg.skills.map((s) => s.skill_id)).toEqual(['skill_a', 'skill_b', 'skill_c']);
+    expect(cfg.skills.map((s) => s.skill_id)).toEqual(['skill_a', 'skill_b', 'skill_c', 'skill_d']);
     expect(cfg.tools).toContainEqual({
       type: 'mcp_toolset',
       mcp_server_name: LEDGER_MCP_NAME,
@@ -25,10 +35,46 @@ describe('buildAgentConfig', () => {
     });
   });
 
+  it('omits the payments MCP when no paymentsMcpUrl (pre-Phase-5 setups)', () => {
+    const cfg = buildAgentConfig({ ledgerMcpUrl: 'https://ledger.example/mcp', skillIds });
+    expect(cfg.mcp_servers.some((s) => s.name === PAYMENTS_MCP_NAME)).toBe(false);
+    expect(cfg.tools.some((t) => 'mcp_server_name' in t && t.mcp_server_name === PAYMENTS_MCP_NAME)).toBe(
+      false,
+    );
+  });
+
+  it('wires the payments MCP + always_allow toolset when paymentsMcpUrl is given (Phase 5)', () => {
+    const cfg = buildAgentConfig({
+      ledgerMcpUrl: 'https://ledger.example/mcp',
+      paymentsMcpUrl: 'https://pay.example/mcp',
+      skillIds,
+    });
+    expect(cfg.mcp_servers).toContainEqual({
+      type: 'url',
+      name: PAYMENTS_MCP_NAME,
+      url: 'https://pay.example/mcp',
+    });
+    expect(cfg.tools).toContainEqual({
+      type: 'mcp_toolset',
+      mcp_server_name: PAYMENTS_MCP_NAME,
+      default_config: { enabled: true, permission_policy: { type: 'always_allow' } },
+    });
+  });
+
   it('PROBE: rejects an http:// ledger URL (bearer tokens travel on it)', () => {
     expect(() => buildAgentConfig({ ledgerMcpUrl: 'http://ledger.example/mcp', skillIds })).toThrow(
       /https/,
     );
+  });
+
+  it('PROBE: rejects an http:// payments URL too (tokens travel on it)', () => {
+    expect(() =>
+      buildAgentConfig({
+        ledgerMcpUrl: 'https://ledger.example/mcp',
+        paymentsMcpUrl: 'http://pay.example/mcp',
+        skillIds,
+      }),
+    ).toThrow(/https/);
   });
 
   it('PROBE: rejects a garbage URL', () => {

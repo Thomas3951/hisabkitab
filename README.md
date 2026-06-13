@@ -15,6 +15,28 @@ owner's confirmation. The agent shows its work, flags anything it's unsure about
 - `docs/nepali-smb-finance-agent-PRD*.md` — v1.0 base, v1.1 (safety + verified tax, authoritative),
   v1.2 (reports module), v2.0 (commercialization — build after the pilot).
 
+## Status — Phases 0–5 complete
+
+**Phase 5** ships `packages/mcp-payments`: a tenant-bound Payments MCP over Streamable HTTP
+(`initiate_payment` / `verify_payment` / `refund_payment` / `list_collected_payments` + eSewa &
+Fonepay "coming soon" stubs), plus the public unauthenticated `GET /payments/khalti/return`
+callback. **Khalti (KPG-2) is live** via a real `KhaltiClient` whose code path is identical whether
+it talks to a local byte-faithful stub, `dev.khalti.com` sandbox, or production. Non-negotiables are
+enforced in the tools, not the prompt: the consent gate is a zod `literal(true)` (`owner_approved` —
+unparseable without the owner's explicit ✅), the server-side **lookup is the only source of truth**
+(callback params and model claims are never trusted), amounts are reconciled (`lookup.total_amount`
+must equal the initiated amount or the payment is flagged `amount_mismatch` and never completed), and
+recording is **exactly-once** (`pidx` unique + `sale_id` latch in one tenant transaction → one
+CONFIRMED gateway sale with the exact VAT-inclusive split). The agent is wired to it: `definition.ts`
+mounts the payments MCP + `always_allow` toolset, a new **nepal-payments skill** teaches the
+consent→initiate→verify flow, and the system prompt gained a PAYMENTS paragraph. Migration `0003`
+adds the `payments` table (RLS) and `sales.source='gateway'`. **19 contract tests** (real Postgres
+as the RLS role, real MCP client, real KhaltiClient over the stub) + a runtime harness
+(`pnpm --filter @hisab/mcp-payments verify`, **8/8 PASS**) drive the real HTTP server and callback
+through every probe: refused unconsented initiate, forged "Completed" callback, tampered amount,
+replayed callback, cross-tenant settle. All verified locally — **no Anthropic API spend**. The same
+suite runs unchanged against the real Khalti sandbox once the merchant key is issued.
+
 ## Status — Phases 0–4 complete
 
 **Phase 4** ships the bill-extraction confirmation loop, proven end-to-end with messy bills
@@ -84,6 +106,8 @@ pnpm typecheck   # tsc --strict
 ```
 
 ## Next
-Phase 5: Payments MCP (Khalti sandbox live; eSewa/Fonepay "coming soon" stubs). Still external:
-Meta business verification + number (webhook is ready) and a public https deployment of the
-Ledger MCP — setup manual lives in the gitignored `manual.txt`.
+Phase 6: monthly VAT-return reminder scheduler + session self-verification. Still external (not
+code): Meta business verification + number (webhook is ready), Khalti **merchant onboarding**
+(sandbox at `test-admin.khalti.com`; production needs the MOU docs — see `manual.txt`), and a public
+https deployment of the Ledger + Payments MCP servers. The gitignored `manual.txt` holds the setup
+manual and the Khalti sandbox/production details.

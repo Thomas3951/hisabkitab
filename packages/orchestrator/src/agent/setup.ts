@@ -43,9 +43,13 @@ export async function ensureEnvironment(client: Anthropic): Promise<string> {
 
 export async function ensureAgent(
   client: Anthropic,
-  input: { ledgerMcpUrl: string; skillIds: SkillRefs; update?: boolean },
+  input: { ledgerMcpUrl: string; paymentsMcpUrl?: string; skillIds: SkillRefs; update?: boolean },
 ): Promise<{ agentId: string; agentVersion: number }> {
-  const config = buildAgentConfig({ ledgerMcpUrl: input.ledgerMcpUrl, skillIds: input.skillIds });
+  const config = buildAgentConfig({
+    ledgerMcpUrl: input.ledgerMcpUrl,
+    ...(input.paymentsMcpUrl ? { paymentsMcpUrl: input.paymentsMcpUrl } : {}),
+    skillIds: input.skillIds,
+  });
   for await (const agent of client.beta.agents.list()) {
     if (agent.name === config.name) {
       if (input.update) {
@@ -62,12 +66,13 @@ export async function ensureAgent(
 
 export async function setup(
   client: Anthropic,
-  opts: { ledgerMcpUrl: string; update?: boolean; forceSkills?: boolean },
+  opts: { ledgerMcpUrl: string; paymentsMcpUrl?: string; update?: boolean; forceSkills?: boolean },
 ): Promise<SetupResult> {
   const skillIds = await syncSkills(client, SKILLS_ROOT, { forceNewVersion: opts.forceSkills });
   const environmentId = await ensureEnvironment(client);
   const agent = await ensureAgent(client, {
     ledgerMcpUrl: opts.ledgerMcpUrl,
+    ...(opts.paymentsMcpUrl ? { paymentsMcpUrl: opts.paymentsMcpUrl } : {}),
     skillIds,
     update: opts.update,
   });
@@ -83,9 +88,14 @@ if (isDirectRun) {
   if (!process.env['LEDGER_MCP_URL']) {
     console.warn(`LEDGER_MCP_URL not set — using placeholder ${ledgerMcpUrl} (fine pre-Phase-3).`);
   }
+  const paymentsMcpUrl = process.env['PAYMENTS_MCP_URL'];
+  if (!paymentsMcpUrl) {
+    console.warn('PAYMENTS_MCP_URL not set — agent built WITHOUT the payments MCP (fine pre-Phase-5).');
+  }
   const client = new Anthropic();
   const result = await setup(client, {
     ledgerMcpUrl,
+    ...(paymentsMcpUrl ? { paymentsMcpUrl } : {}),
     update: process.argv.includes('--update'),
     forceSkills: process.argv.includes('--force-skills'),
   });
