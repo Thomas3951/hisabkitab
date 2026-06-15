@@ -28,34 +28,38 @@ export function Features() {
           <h2 className="display mt-3 text-[34px] sm:text-[42px]">One agent. Your whole back office.</h2>
         </div>
 
-        <div className="grid auto-rows-[180px] grid-cols-2 gap-5 lg:grid-cols-4">
-          {/* big tile: VAT */}
-          <Tile className="col-span-2 row-span-2 flex flex-col justify-between bg-gradient-to-br from-surface to-cream/50">
+        {/* Bento grid: single column on phones (nothing clips), 2-up on small
+            tablets, full 4-col bento from lg up. Rows size to content
+            (auto-rows-fr keeps siblings in a row equal height) so copy never
+            overflows a fixed tile height. */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:auto-rows-fr lg:grid-cols-4">
+          {/* big tile: VAT — spans 2x2 only where there's room for it */}
+          <Tile className="flex flex-col justify-between gap-6 bg-gradient-to-br from-surface to-cream/50 sm:col-span-2 sm:row-span-2">
             <div>
               <span className="label">Nepal VAT &amp; TDS</span>
               <h3 className="display mt-3 text-2xl">Tax math, done right</h3>
-              <p className="mt-2 max-w-sm text-sm text-muted">
+              <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted">
                 Inclusive/exclusive 13% VAT, input-credit eligibility (Rule 17 vs 17Ka, the 1-year
                 window), TDS on the VAT-exclusive base. Ambiguous? It asks an accountant, never estimates.
               </p>
             </div>
-            <div className="flex items-end gap-4 font-mono text-xs text-muted">
+            <div className="flex flex-wrap items-end gap-x-5 gap-y-3 font-mono text-xs text-muted">
               <div><p className="text-2xl font-semibold text-ink">8,000</p>taxable</div>
               <div className="text-primary"><p className="text-2xl font-semibold">1,040</p>VAT 13%</div>
               <div><p className="text-2xl font-semibold text-ink">9,040</p>total</div>
             </div>
           </Tile>
 
-          <Tile delay={0.05}><Icon>📄</Icon><h3 className="mt-3 font-serif font-semibold">Bill extraction</h3><p className="mt-1 text-sm text-muted">Reads messy photos and PDFs, and asks when unsure.</p></Tile>
-          <Tile delay={0.1}><Icon>💳</Icon><h3 className="mt-3 font-serif font-semibold">Khalti payments</h3><p className="mt-1 text-sm text-muted">Collect and verify, and the sale records itself, exactly once.</p></Tile>
+          <Tile delay={0.05}><Icon>📄</Icon><h3 className="mt-3 font-serif font-semibold">Bill extraction</h3><p className="mt-1 text-sm leading-relaxed text-muted">Reads messy photos and PDFs, and asks when unsure.</p></Tile>
+          <Tile delay={0.1}><Icon>💳</Icon><h3 className="mt-3 font-serif font-semibold">Khalti payments</h3><p className="mt-1 text-sm leading-relaxed text-muted">Collect and verify, and the sale records itself, exactly once.</p></Tile>
 
-          <Tile delay={0.15} className="col-span-2 flex items-center gap-5">
+          <Tile delay={0.15} className="flex items-start gap-5 sm:col-span-2">
             <Icon big>🔔</Icon>
-            <div><h3 className="font-serif font-semibold">Monthly VAT reminders</h3><p className="mt-1 text-sm text-muted">Around the 20th BS, it prepares the return, self verifies the numbers, and nudges you to review and file.</p></div>
+            <div><h3 className="font-serif font-semibold">Monthly VAT reminders</h3><p className="mt-1 text-sm leading-relaxed text-muted">Before the 25th, it prepares the return, self verifies the numbers, and nudges you to review and file.</p></div>
           </Tile>
 
-          <Tile delay={0.2}><Icon>📊</Icon><h3 className="mt-3 font-serif font-semibold">AR / AP and aging</h3><p className="mt-1 text-sm text-muted">Who owes you and what you owe, bucketed by age.</p></Tile>
-          <Tile delay={0.25}><Icon>📑</Icon><h3 className="mt-3 font-serif font-semibold">PDF reports</h3><p className="mt-1 text-sm text-muted">Rendered from validated data, with reconcile or hold.</p></Tile>
+          <Tile delay={0.2}><Icon>📊</Icon><h3 className="mt-3 font-serif font-semibold">AR / AP and aging</h3><p className="mt-1 text-sm leading-relaxed text-muted">Who owes you and what you owe, bucketed by age.</p></Tile>
+          <Tile delay={0.25}><Icon>📑</Icon><h3 className="mt-3 font-serif font-semibold">PDF reports</h3><p className="mt-1 text-sm leading-relaxed text-muted">Rendered from validated data, with reconcile or hold.</p></Tile>
         </div>
       </div>
     </section>

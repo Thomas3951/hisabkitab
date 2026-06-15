@@ -2,11 +2,44 @@
  * Footer: multi column navigation (Platform / Company / Resources / Connect)
  * plus legal pathways. Static (server component, no client JS).
  */
-const COLUMNS: { title: string; links: string[] }[] = [
-  { title: 'Platform', links: ['Bill extraction', 'VAT & TDS', 'Payments', 'Reports', 'Reminders'] },
-  { title: 'Company', links: ['About', 'Pilot program', 'Careers', 'Press'] },
-  { title: 'Resources', links: ['How it works', 'Nepal VAT guide', 'Security', 'Status'] },
-  { title: 'Connect', links: ['WhatsApp', 'Email', 'Twitter / X', 'LinkedIn'] },
+const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
+  {
+    title: 'Platform',
+    links: [
+      { label: 'Bill extraction', href: '/platform#bill-extraction' },
+      { label: 'VAT & TDS', href: '/platform#vat-tds' },
+      { label: 'Payments', href: '/platform#payments' },
+      { label: 'Reports', href: '/platform#reports' },
+      { label: 'Reminders', href: '/platform#reminders' },
+    ],
+  },
+  {
+    title: 'Company',
+    links: [
+      { label: 'About', href: '/about' },
+      { label: 'Pilot program', href: '/pilot' },
+      { label: 'Careers', href: '/careers' },
+      { label: 'Press', href: '/press' },
+    ],
+  },
+  {
+    title: 'Resources',
+    links: [
+      { label: 'How it works', href: '/how-it-works' },
+      { label: 'Nepal VAT guide', href: '/vat-guide' },
+      { label: 'Security', href: '/security' },
+      { label: 'Status', href: '/status' },
+    ],
+  },
+  {
+    title: 'Connect',
+    links: [
+      { label: 'WhatsApp', href: '/#start' },
+      { label: 'Email', href: 'mailto:hello@hisabkitab.pro' },
+      { label: 'Twitter / X', href: 'https://x.com/hisabkitab' },
+      { label: 'LinkedIn', href: 'https://www.linkedin.com/company/hisabkitab' },
+    ],
+  },
 ];
 
 export function Footer() {
@@ -33,8 +66,8 @@ export function Footer() {
               <p className="label">{col.title}</p>
               <ul className="mt-4 space-y-2.5">
                 {col.links.map((l) => (
-                  <li key={l}>
-                    <a href="#" className="text-sm text-muted transition-colors hover:text-ink">{l}</a>
+                  <li key={l.label}>
+                    <a href={l.href} className="text-sm text-muted transition-colors hover:text-ink">{l.label}</a>
                   </li>
                 ))}
               </ul>
@@ -45,9 +78,9 @@ export function Footer() {
         <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-hairline pt-7 text-sm text-muted sm:flex-row">
           <p>© {new Date().getFullYear()} HisabKitab. Made in Nepal 🇳🇵</p>
           <div className="flex gap-6">
-            <a href="#" className="transition-colors hover:text-ink">Privacy</a>
-            <a href="#" className="transition-colors hover:text-ink">Terms</a>
-            <a href="#" className="transition-colors hover:text-ink">Data deletion</a>
+            <a href="/privacy" className="transition-colors hover:text-ink">Privacy</a>
+            <a href="/terms" className="transition-colors hover:text-ink">Terms</a>
+            <a href="/data-deletion" className="transition-colors hover:text-ink">Data deletion</a>
           </div>
         </div>
       </div>

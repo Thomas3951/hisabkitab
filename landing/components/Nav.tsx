@@ -11,7 +11,7 @@ export function Nav() {
       className="fixed inset-x-0 top-0 z-50"
     >
       <nav className="mx-auto mt-4 flex max-w-content items-center justify-between rounded-pill border border-hairline bg-surface/80 px-4 py-2.5 shadow-card backdrop-blur-md sm:px-5">
-        <a href="#" className="flex items-center gap-2">
+        <a href="/" className="flex items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-primary to-accent font-serif text-white">हि</span>
           <span className="font-serif text-lg font-semibold">HisabKitab</span>
         </a>

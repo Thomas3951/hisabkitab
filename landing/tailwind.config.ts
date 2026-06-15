@@ -24,6 +24,7 @@ const config: Config = {
           in: '#FFFFFF',
           header: '#075E54',
           tick: '#34B7F1',
+          green: '#25D366', // WhatsApp brand green (used for the "inside WhatsApp" accent)
         },
       },
       fontFamily: {

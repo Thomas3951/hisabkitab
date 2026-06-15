@@ -27,7 +27,7 @@ export function Hero() {
 
           <motion.h1 variants={rise} className="display text-[44px] sm:text-[58px]">
             Your smart accountant,{' '}
-            <span className="relative whitespace-nowrap text-primary">
+            <span className="relative whitespace-nowrap text-wa-green">
               inside WhatsApp
               <Underline />
             </span>
@@ -90,7 +90,7 @@ function Underline() {
     <svg className="absolute -bottom-2 left-0 w-full" height="10" viewBox="0 0 300 10" fill="none" aria-hidden>
       <motion.path
         d="M2 7C60 3 120 3 180 5C220 6 260 6 298 4"
-        stroke="#FDB813"
+        stroke="#25D366"
         strokeWidth="4"
         strokeLinecap="round"
         initial={{ pathLength: 0 }}

@@ -14,7 +14,7 @@ const ROW_A: Scenario[] = [
   { icon: '📸', title: 'Send a photo', body: 'You snap a supplier bill. It reads the VAT and waits for your OK. Your accountant only reviews at month end.' },
   { icon: '🛡️', title: 'Catches 17Ka bills', body: 'An abbreviated bill that is not valid for input credit is flagged, with the reason explained in plain language.' },
   { icon: '✅', title: 'Nothing without your yes', body: 'Every entry stays a draft until you confirm it. You stay in control of what goes on the books.' },
-  { icon: '🔔', title: 'Monthly VAT reminder', body: 'Around the 20th BS it prepares the return and shows the net payable on one screen, ready for you to file.' },
+  { icon: '🔔', title: 'Monthly VAT reminder', body: 'Before the 25th it prepares the return and shows the net payable on one screen, ready for you to file.' },
 ];
 
 const ROW_B: Scenario[] = [

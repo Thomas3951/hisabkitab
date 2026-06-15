@@ -15,7 +15,7 @@ const PERSONAS = [
     emoji: '☕',
     pain: '“Bills pile up in a drawer. By the 25th I’m panicking about VAT.”',
     relief: 'Snap each bill as it comes. By month end your return is already prepared, ready for you to review and file.',
-    proof: 'Shrawan return ready in 0 late nights',
+    proof: 'Month-end return ready, no late nights',
   },
   {
     tag: 'Retail & hardware shops',
