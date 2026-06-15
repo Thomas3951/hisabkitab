@@ -53,6 +53,12 @@ anything it's unsure about, and never guesses." We do NOT claim "zero mistakes."
 - Reports: render PDFs **deterministically from validated data** via HTML→PDF (Playwright); the model
   never hand-writes numbers into a document.
 - Payments v1: **Khalti only (live)**; eSewa + Fonepay are "coming soon" stubs surfaced to users.
+- **Subscription billing (P10):** the SMB pays HisabKitab via 3 fixed tiers — Starter **Rs 2,999** /
+  Pro **Rs 4,999** / Business **Rs 7,999** per month (prepaid). Prices are config in ONE place
+  (`packages/mcp-payments/src/plans.ts`, integer paisa); the landing `/pay` page mirrors them. Tools
+  `list_subscription_plans` + `initiate_subscription` (price comes from the plan, never the caller; same
+  `owner_approved` consent gate). **Default DEV mode = no charge / no Khalti call**; set `PAYMENTS_LIVE=1`
+  (real merchant key) to enable live charging after deploy.
 - Secrets: Managed Agents **vaults**; nothing secret in the repo or system prompt.
 - `tsc --strict` clean, eslint + prettier, `vitest`. Write **tests first** for all money/VAT/TDS,
   inclusive-math rounding, aging buckets, and allocation logic — these are the highest-risk code.
@@ -172,6 +178,17 @@ The whole backend runs in Docker Compose. **Do not run services by hand** for an
   image. New **/pay** Khalti dev-preview page (catchy, disabled button, cannot charge → $0).
 - DNS (Namecheap): 4× A `185.199.108-111.153` + CNAME `www→nikegunn.github.io` (GitHub Pages) — verified
   resolving. GitHub user: **NikeGunn**. Deploy runbook: `docs/DEPLOY.md`.
+
+**✅ P10 (partial) — subscription billing tiers — DONE (2026-06-15; 298 tests, +6):**
+- 3 plans as config in `packages/mcp-payments/src/plans.ts` (single source of truth, integer paisa):
+  Starter **Rs 2,999** / Pro **Rs 4,999** / Business **Rs 7,999** per month (prepaid). Landing `/pay`
+  mirrors these (authoritative — replaced the old 999/1999/2999).
+- New tools `list_subscription_plans` (read-only) + `initiate_subscription` (plan_code + `owner_approved`
+  gate; price resolved from config, never the caller; funnels through the same exactly-once Khalti path).
+  `PaymentsToolContext.live` / `PAYMENTS_LIVE=1` flag: **default DEV mode does NOT charge or call Khalti**
+  (no API cost until deployed). 6 contract tests incl. probes (no-charge dev, consent gate, unknown plan,
+  exactly-once live). Remaining P10 (subscriptions table, trial→active→suspend lifecycle, dunning,
+  feature-gating) still pending — this is just the priced tiers + pay-initiation.
 
 **⬜ PENDING — build in this order:**
 - ⬜ **Commercialization (v2.0) — build ONLY after a v1 pilot proves retention.** Required-for-first-
