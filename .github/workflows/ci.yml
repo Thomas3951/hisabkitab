@@ -114,9 +114,14 @@ jobs:
           done
           echo "healthz never came up"; docker logs smoke; exit 1
 
-  # ── security: filesystem + dependency vulnerability scan ──
+  # ── security: filesystem + dependency vulnerability scan (advisory) ──
+  # Marked continue-on-error: the Trivy binary install / DB download is
+  # occasionally flaky on the runner (GitHub API rate limits), and an advisory
+  # scan must not red-X the whole pipeline on tooling hiccups. Findings still
+  # surface in the Security tab when the scan runs.
   scan:
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: read
       security-events: write
@@ -124,6 +129,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Trivy filesystem scan
         uses: aquasecurity/trivy-action@v0.33.1
+        env:
+          # Pull the vuln DB from GHCR via the token to dodge anonymous rate limits.
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           scan-type: fs
           scanners: vuln,secret,misconfig
@@ -132,7 +141,7 @@ jobs:
           format: sarif
           output: trivy.sarif
       - name: Upload results to code scanning
-        if: always()
+        if: always() && hashFiles('trivy.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy.sarif
