@@ -102,3 +102,84 @@ describe('initiate_subscription — live mode (Khalti path)', () => {
     expect(stub.payments.size).toBe(before + 1);
   });
 });
+
+describe('subscription lifecycle (trial → pay → active, exactly-once)', () => {
+  let s: TestSession;
+  let tid: string;
+
+  beforeAll(async () => {
+    tid = await createTenant('Lifecycle Pasal');
+    s = await openSession(handle, tid, stub, { live: true });
+  });
+  afterAll(async () => {
+    await s.close();
+  });
+
+  it('start_trial creates a trial; calling again is idempotent', async () => {
+    const a = await s.callTool<{ created: boolean; status: string }>('start_trial', { plan_code: 'pro' });
+    expect(a.created).toBe(true);
+    expect(a.status).toBe('trial');
+    const b = await s.callTool<{ created: boolean; status: string }>('start_trial', { plan_code: 'pro' });
+    expect(b.created).toBe(false); // no second subscription row
+  });
+
+  it('get_subscription_status reports access during the trial', async () => {
+    const r = await s.callTool<{ exists: boolean; status: string; has_access: boolean }>('get_subscription_status');
+    expect(r.exists).toBe(true);
+    expect(r.has_access).toBe(true);
+  });
+
+  it('a completed payment activates the subscription and returns a receipt', async () => {
+    const init = await s.callTool<{ pidx: string }>('initiate_subscription', { plan_code: 'pro', owner_approved: true });
+    stub.completePayment(init.pidx);
+
+    const v = await s.callTool<{
+      ok: boolean;
+      status: string;
+      plan: string;
+      current_period_end: string;
+      receipt: { amount_paisa: number; period_end: string };
+    }>('verify_subscription', { pidx: init.pidx });
+    expect(v.ok).toBe(true);
+    expect(v.status).toBe('completed');
+    expect(v.plan).toBe('pro');
+    expect(v.receipt.amount_paisa).toBe(499_900);
+
+    const st = await s.callTool<{ status: string; current_period_end: string }>('get_subscription_status');
+    expect(st.status).toBe('active');
+    expect(st.current_period_end).toBe(v.current_period_end);
+  });
+
+  it('PROBE: a replayed verify_subscription credits the period exactly once', async () => {
+    const init = await s.callTool<{ pidx: string }>('initiate_subscription', { plan_code: 'business', owner_approved: true });
+    stub.completePayment(init.pidx);
+    const first = await s.callTool<{ current_period_end: string }>('verify_subscription', { pidx: init.pidx });
+    const replay = await s.callTool<{ already_credited?: boolean; current_period_end: string }>('verify_subscription', {
+      pidx: init.pidx,
+    });
+    expect(replay.already_credited).toBe(true);
+    expect(replay.current_period_end).toBe(first.current_period_end); // not extended twice
+  });
+
+  it('cancel_subscription is terminal but keeps access until period end', async () => {
+    const r = await s.callTool<{ ok: boolean; status: string; access_until: string }>('cancel_subscription', {
+      owner_approved: true,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.status).toBe('cancelled');
+    const st = await s.callTool<{ status: string }>('get_subscription_status');
+    expect(st.status).toBe('cancelled');
+  });
+
+  it('PROBE: cancel_subscription without owner_approved is rejected', async () => {
+    const fresh = await createTenant('No-Consent Pasal');
+    const fs = await openSession(handle, fresh, stub, { live: true });
+    try {
+      await fs.callTool('start_trial', { plan_code: 'starter' });
+      const r = await fs.callToolRaw('cancel_subscription', {});
+      expect(r.isError).toBe(true);
+    } finally {
+      await fs.close();
+    }
+  });
+});

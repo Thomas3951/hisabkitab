@@ -1,49 +1,51 @@
 /**
  * Subscription plans (v2.0 P10 billing) — the SMB pays HisabKitab.
  *
- * SINGLE SOURCE OF TRUTH for the three tiers. Prices are integer paisa (CLAUDE.md
- * §3: money is paisa, never floats). The landing /pay page mirrors these numbers.
+ * Prices + names are the SINGLE SOURCE OF TRUTH in `@hisab/shared` (PLAN_META), so
+ * the payments service, the orchestrator's dunning, and feature-gating all agree.
+ * This module adds the presentation copy (blurb + feature bullets) on top. Prices
+ * are integer paisa (CLAUDE.md §3). The landing /pay page mirrors these numbers.
  *
  * Nepali gateways have no card-on-file auto-debit, so a subscription is modelled
  * as a PREPAID PERIOD: the owner pays for one month up front (PRD v2.0 §2). No
  * silent recurring charge.
  */
+import { PLAN_META, type PlanCode } from '@hisab/shared';
 
-export type PlanCode = 'starter' | 'pro' | 'business';
+export type { PlanCode };
 
 export interface Plan {
   code: PlanCode;
   name: string;
-  /** Monthly price in integer paisa (1 NPR = 100 paisa). */
+  /** Monthly price in integer paisa (from PLAN_META — single source of truth). */
   pricePaisa: number;
   blurb: string;
   features: string[];
 }
 
-/** Ordered cheapest → priciest; the order the agent and the page present them. */
-export const SUBSCRIPTION_PLANS: readonly Plan[] = [
-  {
-    code: 'starter',
-    name: 'Starter',
-    pricePaisa: 299_900, // Rs 2,999 / month
+/** Presentation copy per plan, merged with the canonical name/price from PLAN_META. */
+const PLAN_COPY: Record<PlanCode, { blurb: string; features: string[] }> = {
+  starter: {
     blurb: 'For a solo shop finding its rhythm.',
     features: ['Log by photo or text', 'VAT reminders', 'Nil return prep', '1 user'],
   },
-  {
-    code: 'pro',
-    name: 'Pro',
-    pricePaisa: 499_900, // Rs 4,999 / month
+  pro: {
     blurb: 'For a growing business with credit customers.',
     features: ['Everything in Starter', 'Debtors and creditors', 'Statements and aging', '3 users'],
   },
-  {
-    code: 'business',
-    name: 'Business',
-    pricePaisa: 799_900, // Rs 7,999 / month
+  business: {
     blurb: 'For an established SMB and its accountant.',
     features: ['Everything in Pro', 'All PDF reports', 'Accountant seat', 'Priority support'],
   },
-] as const;
+};
+
+/** Ordered cheapest → priciest; the order the agent and the page present them. */
+export const SUBSCRIPTION_PLANS: readonly Plan[] = (['starter', 'pro', 'business'] as const).map((code) => ({
+  code,
+  name: PLAN_META[code].name,
+  pricePaisa: PLAN_META[code].pricePaisa,
+  ...PLAN_COPY[code],
+}));
 
 const BY_CODE = new Map<string, Plan>(SUBSCRIPTION_PLANS.map((p) => [p.code, p]));
 

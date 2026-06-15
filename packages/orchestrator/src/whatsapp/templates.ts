@@ -52,6 +52,43 @@ export const TEMPLATES: TemplateDefinition[] = [
       },
     ],
   },
+  // ---- P10 billing dunning (subscription renewal nudges) ----
+  {
+    name: 'subscription_due_soon',
+    category: 'UTILITY',
+    language: 'en',
+    components: [
+      {
+        type: 'BODY',
+        text: 'Your HisabKitab {{1}} plan renews on {{2}} (Rs {{3}}/month). Reply "renew" to keep it active.',
+        example: { body_text: [['Pro', '30 Asar', '4,999']] },
+      },
+    ],
+  },
+  {
+    name: 'subscription_expired',
+    category: 'UTILITY',
+    language: 'en',
+    components: [
+      {
+        type: 'BODY',
+        text: 'Your HisabKitab {{1}} plan has ended. You still have access for a few more days. Reply "renew" to continue. Your data is safe.',
+        example: { body_text: [['Pro']] },
+      },
+    ],
+  },
+  {
+    name: 'subscription_suspended',
+    category: 'UTILITY',
+    language: 'en',
+    components: [
+      {
+        type: 'BODY',
+        text: 'Your HisabKitab {{1}} plan is paused for non-payment. Your data is retained. Reply "renew" anytime to reactivate.',
+        example: { body_text: [['Pro']] },
+      },
+    ],
+  },
 ];
 
 export async function submitTemplates(opts: {

@@ -17,8 +17,10 @@ import { schema, withTenant, type Db, type Tx } from '@hisab/db';
 import { defaultTaxConfig, splitVatInclusive, type TaxConfig } from '@hisab/shared';
 import type { KhaltiClient, KhaltiLookupResponse } from './khalti.js';
 import { SUBSCRIPTION_PLANS, getPlan, rupees } from './plans.js';
+import { ensureTrial, loadSubscription, settleSubscriptionPayment } from './billing.js';
+import { projectStatus, hasAccess, type SubscriptionState } from '@hisab/shared';
 
-const { payments, sales, auditLog } = schema;
+const { payments, sales, auditLog, billingPayments, subscriptions: subscriptionsTable } = schema;
 
 const paisa = z
   .number()
@@ -58,8 +60,18 @@ export const inputSchemas = {
   fonepay_initiate_payment: { amount_paisa: paisa.optional() },
   // ---- subscription billing (v2.0 P10): the SMB pays HisabKitab ----
   list_subscription_plans: {},
+  start_trial: {
+    plan_code: z.enum(['starter', 'pro', 'business']).default('pro').describe('tier the trial previews'),
+  },
+  get_subscription_status: {},
   initiate_subscription: {
     plan_code: z.enum(['starter', 'pro', 'business']).describe('which subscription tier the owner chose'),
+    owner_approved: ownerApproved,
+  },
+  verify_subscription: {
+    pidx: z.string().min(1).max(100),
+  },
+  cancel_subscription: {
     owner_approved: ownerApproved,
   },
 } as const;
@@ -308,12 +320,14 @@ export function createToolHandlers(ctx: PaymentsToolContext) {
         websiteUrl: ctx.websiteUrl,
       });
       return inTenantTx(async (tx) => {
-        await tx.insert(payments).values({
+        // Subscription payments live in billing_payments (the tenant paying US),
+        // NOT the `payments` table (their customer paying them → a sale).
+        await tx.insert(billingPayments).values({
           tenantId: ctx.tenantId,
-          provider: 'khalti',
+          planCode: plan.code,
+          gateway: 'khalti',
           pidx: initiated.pidx,
           purchaseOrderId: orderId,
-          purchaseOrderName: purpose,
           amountPaisa: BigInt(plan.pricePaisa),
           paymentUrl: initiated.payment_url,
         });
@@ -334,7 +348,66 @@ export function createToolHandlers(ctx: PaymentsToolContext) {
           amount_paisa: plan.pricePaisa,
           amount_display: rupees(plan.pricePaisa),
           charged: false as const,
-          note: 'Share/open the payment_url to pay. The subscription activates only after the payment completes and verify_payment confirms it.',
+          note: 'Share/open the payment_url to pay. The subscription activates only after the payment completes and verify_subscription confirms it.',
+        };
+      });
+    },
+
+    async start_trial(args: Args<'start_trial'>) {
+      return inTenantTx((tx) => ensureTrial(tx, ctx.tenantId, args.plan_code));
+    },
+
+    /** Project the CURRENT lifecycle status from the stored period (not the stale row). */
+    async get_subscription_status(_args: Args<'get_subscription_status'>) {
+      return inTenantTx(async (tx) => {
+        const sub = await loadSubscription(tx, ctx.tenantId);
+        if (!sub) return { exists: false as const, note: 'No subscription yet. Start a free trial or choose a plan.' };
+        const state: SubscriptionState = { status: sub.status, currentPeriodEnd: sub.currentPeriodEnd };
+        const today = new Date().toISOString().slice(0, 10);
+        const projected = projectStatus(state, today);
+        const plan = getPlan(sub.planCode);
+        return {
+          exists: true as const,
+          plan: sub.planCode,
+          plan_name: plan?.name ?? sub.planCode,
+          stored_status: sub.status,
+          status: projected, // the authoritative, time-aware status
+          current_period_end: sub.currentPeriodEnd,
+          has_access: hasAccess(state, today),
+          note:
+            projected === 'past_due'
+              ? 'Your subscription has lapsed but you still have access during the grace period. Renew to stay active.'
+              : projected === 'suspended'
+                ? 'Your subscription is suspended. Your data is safe; pay to reactivate.'
+                : undefined,
+        };
+      });
+    },
+
+    async verify_subscription(args: Args<'verify_subscription'>) {
+      return inTenantTx(async (tx) => {
+        const [row] = await tx.select().from(billingPayments).where(eq(billingPayments.pidx, args.pidx));
+        if (!row) return { ok: false as const, reason: 'no such subscription payment in this business' };
+        return settleSubscriptionPayment({ khalti: ctx.khalti }, tx, row);
+      });
+    },
+
+    /** Owner-initiated cancellation. Terminal; access remains until period end (no refund here). */
+    async cancel_subscription(_args: Args<'cancel_subscription'>) {
+      return inTenantTx(async (tx) => {
+        const sub = await loadSubscription(tx, ctx.tenantId);
+        if (!sub) return { ok: false as const, reason: 'no subscription to cancel' };
+        if (sub.status === 'cancelled') return { ok: true as const, status: 'cancelled' as const, already: true };
+        await tx
+          .update(subscriptionsTable)
+          .set({ status: 'cancelled', updatedAt: new Date() })
+          .where(eq(subscriptionsTable.tenantId, ctx.tenantId));
+        await audit(tx, ctx.tenantId, 'subscription.cancelled', { plan: sub.planCode, was: sub.status });
+        return {
+          ok: true as const,
+          status: 'cancelled' as const,
+          access_until: sub.currentPeriodEnd,
+          note: 'Subscription cancelled. You keep access until the end of the period you already paid for. Your data is retained.',
         };
       });
     },
@@ -423,4 +496,12 @@ export const toolDescriptions: Record<keyof typeof inputSchemas, string> = {
     'List the HisabKitab subscription plans the business can buy (Starter/Pro/Business, prices in NPR, prepaid monthly). Read-only, no charge. Use the EXACT price_display values when telling the owner.',
   initiate_subscription:
     'Start paying for a HisabKitab subscription plan (the business pays US). Price comes from the chosen plan_code, not the caller. REQUIRES the owner\'s explicit "✅"/yes (owner_approved). In development it returns the plan + price WITHOUT charging; once live it returns a Khalti payment_url.',
+  start_trial:
+    'Begin a free trial for this business (idempotent — returns the existing subscription if one exists). Gives full access for the trial period; no payment needed.',
+  get_subscription_status:
+    'Report this business\'s subscription: plan, the time-aware status (trial/active/past_due/suspended/cancelled), period end, and whether it still has access. Use this before gating a paid feature.',
+  verify_subscription:
+    'Server-side Khalti lookup by pidx for a SUBSCRIPTION payment — the only trusted source. On Completed: extends the subscription period exactly once and returns a receipt. Flags amount mismatches.',
+  cancel_subscription:
+    'Cancel this business\'s subscription at the owner\'s explicit request (owner_approved). Access continues until the paid period ends; data is retained. Terminal until they subscribe again.',
 };

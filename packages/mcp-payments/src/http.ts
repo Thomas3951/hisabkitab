@@ -20,6 +20,7 @@ import { createDb, schema, type Db } from '@hisab/db';
 import { verifyTenantToken, AuthError } from '@hisab/mcp-ledger';
 import { buildPaymentsServer } from './server.js';
 import { settlePayment } from './tools.js';
+import { settleSubscriptionPayment } from './billing.js';
 import { KhaltiClient } from './khalti.js';
 
 function requireEnv(name: string): string {
@@ -77,13 +78,26 @@ export function buildPaymentsHttpServer(deps: PaymentsHttpDeps): ReturnType<type
       let body = 'Payment status could not be confirmed yet. The shop owner will verify it shortly.';
       if (pidx) {
         try {
-          const [row] = await deps.orchDb.select().from(schema.payments).where(eq(schema.payments.pidx, pidx));
-          if (row) {
-            const outcome = await deps.orchDb.transaction((tx) => settlePayment({ khalti: deps.khalti }, tx, row));
-            deps.log?.(`khalti return ${pidx}: ${JSON.stringify(outcome['status'])}`);
+          // A pidx is either a customer COLLECTION (payments → a sale) or a
+          // SUBSCRIPTION payment (billing_payments → extends the period). Try
+          // collection first, then subscription. Both settle by lookup, exactly-once.
+          const [coll] = await deps.orchDb.select().from(schema.payments).where(eq(schema.payments.pidx, pidx));
+          const [bill] = coll
+            ? [undefined]
+            : await deps.orchDb.select().from(schema.billingPayments).where(eq(schema.billingPayments.pidx, pidx));
+          if (coll) {
+            const outcome = await deps.orchDb.transaction((tx) => settlePayment({ khalti: deps.khalti }, tx, coll));
+            deps.log?.(`khalti return (collection) ${pidx}: ${JSON.stringify(outcome['status'])}`);
             body =
               outcome['status'] === 'completed'
                 ? 'Payment received — thank you! 🙏 The shop has been notified.'
+                : `Payment not completed (${String(outcome['gateway_status'] ?? outcome['status'])}).`;
+          } else if (bill) {
+            const outcome = await deps.orchDb.transaction((tx) => settleSubscriptionPayment({ khalti: deps.khalti }, tx, bill));
+            deps.log?.(`khalti return (subscription) ${pidx}: ${JSON.stringify(outcome['status'])}`);
+            body =
+              outcome['status'] === 'completed'
+                ? 'Subscription payment received — thank you! 🙏 Your HisabKitab plan is active.'
                 : `Payment not completed (${String(outcome['gateway_status'] ?? outcome['status'])}).`;
           }
         } catch (err) {

@@ -316,6 +316,55 @@ export const payments = pgTable('payments', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// ----- P10 (v2.0 §2): subscription billing — the SMB pays HisabKitab -----
+
+/**
+ * One subscription per tenant. Prepaid period: a completed billing_payment extends
+ * `currentPeriodEnd`. Lifecycle trial→active→past_due→suspended→cancelled is computed
+ * by the pure @hisab/shared/billing module. `lastDunned*` latch the dunning pass so a
+ * daily scan never double-sends a renewal nudge or double-suspends.
+ */
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .unique()
+    .references(() => tenants.id),
+  planCode: text('plan_code').notNull(),
+  status: text('status', { enum: ['trial', 'active', 'past_due', 'suspended', 'cancelled'] })
+    .notNull()
+    .default('trial'),
+  currentPeriodEnd: date('current_period_end').notNull(),
+  lastDunnedStage: text('last_dunned_stage'),
+  lastDunnedFor: date('last_dunned_for'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** A tenant's payment to US (distinct from `payments`, which is their customer paying them). */
+export const billingPayments = pgTable('billing_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id')
+    .notNull()
+    .references(() => tenants.id),
+  planCode: text('plan_code').notNull(),
+  gateway: text('gateway').notNull().default('khalti'),
+  pidx: text('pidx').notNull().unique(),
+  purchaseOrderId: text('purchase_order_id').notNull(),
+  amountPaisa: bigint('amount_paisa', { mode: 'bigint' }).notNull(),
+  status: text('status', {
+    enum: ['initiated', 'completed', 'canceled', 'expired', 'refunded', 'amount_mismatch'],
+  })
+    .notNull()
+    .default('initiated'),
+  transactionId: text('transaction_id'),
+  periodStart: date('period_start'),
+  periodEnd: date('period_end'),
+  paymentUrl: text('payment_url'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ----- Phase 6: monthly VAT-return reminder scheduler -----
 
 /**

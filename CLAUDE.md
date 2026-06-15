@@ -179,20 +179,35 @@ The whole backend runs in Docker Compose. **Do not run services by hand** for an
 - DNS (Namecheap): 4× A `185.199.108-111.153` + CNAME `www→nikegunn.github.io` (GitHub Pages) — verified
   resolving. GitHub user: **NikeGunn**. Deploy runbook: `docs/DEPLOY.md`.
 
-**✅ P10 (partial) — subscription billing tiers — DONE (2026-06-15; 298 tests, +6):**
-- 3 plans as config in `packages/mcp-payments/src/plans.ts` (single source of truth, integer paisa):
-  Starter **Rs 2,999** / Pro **Rs 4,999** / Business **Rs 7,999** per month (prepaid). Landing `/pay`
-  mirrors these (authoritative — replaced the old 999/1999/2999).
-- New tools `list_subscription_plans` (read-only) + `initiate_subscription` (plan_code + `owner_approved`
-  gate; price resolved from config, never the caller; funnels through the same exactly-once Khalti path).
-  `PaymentsToolContext.live` / `PAYMENTS_LIVE=1` flag: **default DEV mode does NOT charge or call Khalti**
-  (no API cost until deployed). 6 contract tests incl. probes (no-charge dev, consent gate, unknown plan,
-  exactly-once live). Remaining P10 (subscriptions table, trial→active→suspend lifecycle, dunning,
-  feature-gating) still pending — this is just the priced tiers + pay-initiation.
+**✅ P10 — FULL billing lifecycle — DONE (2026-06-15; 332 tests, +34):**
+- **Plans** (Starter Rs 2,999 / Pro Rs 4,999 / Business Rs 7,999, prepaid monthly). Canonical name+price
+  now in `@hisab/shared` `PLAN_META` (single source of truth); `mcp-payments/plans.ts` composes blurb+
+  feature copy on top; landing `/pay` mirrors. Integer paisa throughout.
+- **Migration 0009**: `subscriptions` (one per tenant, status trial|active|past_due|suspended|cancelled,
+  `current_period_end`, `last_dunned_stage/for` latch) + `billing_payments` (the tenant paying US; `pidx`
+  UNIQUE exactly-once). Tenant RLS + `hisab_app` grant + `hisab_orch` orch_all (callback + dunning are
+  cross-tenant), mirroring 0003.
+- **Pure lifecycle in `@hisab/shared/billing`** (highest-risk, fully unit-tested + probes): `startTrial`,
+  `projectStatus` (time-aware: grace boundary exact, NEVER silent reactivation), `renew` (prepaid month,
+  extends from later of {end, today} so a post-lapse payment grants no free days; cancelled can't renew),
+  `dunningDecision`. `@hisab/shared/billing/features` = `planAllows`/`planSeats`/`minPlanFor` feature-gating.
+- **Tools** (payments MCP): `start_trial` (idempotent), `get_subscription_status` (projects the live status,
+  not the stale row), `initiate_subscription` (→ `billing_payments` in live mode, dev mode no-charge),
+  `verify_subscription` (settles by Khalti lookup, extends period exactly-once, returns a RECEIPT),
+  `cancel_subscription` (owner_approved; access until period end; data retained). `settleSubscriptionPayment`
+  in `billing.ts`; the Khalti return-URL callback now settles BOTH collections and subscriptions by pidx.
+- **Dunning** (orchestrator `scheduler/dunning-job.ts`, runs in the SAME daily BullMQ tick as reminders):
+  scans subscriptions, sends `subscription_due_soon`/`_expired`/`_suspended` Utility templates, advances
+  status, **auto-suspends after grace (never deletes data)**. Latched on `(last_dunned_stage, period_end)`
+  so a daily pass never double-sends/double-suspends — same at-least-once + DB-latch design as reminders.
+- Tests: shared 124 (+23 billing/features), payments 32 (+6 lifecycle incl. replay-exactly-once + consent
+  probes), orchestrator 127 (+5 dunning incl. auto-suspend + latch + no-number probes). Verified live in
+  the Docker stack (0009 migrates, subscriptions/billing_payments RLS on). Still DEV-safe until deploy +
+  `PAYMENTS_LIVE=1` + real Khalti merchant key.
 
 **⬜ PENDING — build in this order:**
 - ⬜ **Commercialization (v2.0) — build ONLY after a v1 pilot proves retention.** Required-for-first-
-  paid-customer subset: ⬜ **P8** identity/RBAC → ✅ **P9** idempotency → ⬜ **P10** billing →
+  paid-customer subset: ⬜ **P8** identity/RBAC → ✅ **P9** idempotency → ✅ **P10** billing (DONE) →
   ⬜ **P11** cost controls → minimal ⬜ **P15** security → ✅ **P16** infra/CI-CD (DONE).
   Defer until volume: ⬜ P12 voice, ⬜ P13 accounting completeness, ⬜ P14 observability, ⬜ P17 growth,
   ⬜ P18 support/admin, ⬜ P19 accountant channel.

@@ -81,10 +81,16 @@ if (config.SCHEDULER_ENABLED) {
       signingSecret: config.TENANT_SIGNING_SECRET,
     }),
     sendTemplate: (to, name, params) => wa.sendTemplate(to, name, params),
+    // P10: subscription dunning runs in the same daily tick (cross-tenant, hisab_orch).
+    dunning: {
+      db: handle.db,
+      sendTemplate: (to, name, params) => wa.sendTemplate(to, name, params),
+      log: (msg) => console.log(`[dunning] ${msg}`),
+    },
     ...(config.REMINDER_CRON ? { cron: config.REMINDER_CRON } : {}),
     log: (msg) => console.log(`[scheduler] ${msg}`),
   });
-  console.log('hisab reminder scheduler started (BullMQ)');
+  console.log('hisab reminder + dunning scheduler started (BullMQ)');
 }
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

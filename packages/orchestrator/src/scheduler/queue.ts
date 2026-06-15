@@ -24,6 +24,7 @@
  */
 import { Queue, Worker, type ConnectionOptions, type Job } from 'bullmq';
 import { runReminderPass, type ReminderJobDeps, type TenantReminderOutcome } from './reminder-job.js';
+import { runDunningPass, type DunningJobDeps } from './dunning-job.js';
 
 export const REMINDER_QUEUE = 'hisab-vat-reminders';
 export const REMINDER_JOB = 'monthly-vat-return';
@@ -42,6 +43,12 @@ export interface SchedulerOptions extends ReminderJobDeps {
   attempts?: number;
   /** Override "now" in tests; production uses the real clock. */
   now?: () => Date;
+  /**
+   * Optional P10 subscription dunning, run in the SAME daily tick (after reminders).
+   * Omitted = no dunning (e.g. before billing is enabled). Same at-least-once + DB
+   * latch guarantees as reminders.
+   */
+  dunning?: DunningJobDeps;
 }
 
 export interface SchedulerHandle {
@@ -59,7 +66,7 @@ export interface SchedulerHandle {
 }
 
 export async function startScheduler(opts: SchedulerOptions): Promise<SchedulerHandle> {
-  const { connection, cron, timezone, attempts, now, ...jobDeps } = opts;
+  const { connection, cron, timezone, attempts, now, dunning, ...jobDeps } = opts;
   const runNow = now ?? (() => new Date());
 
   const queue = new Queue(REMINDER_QUEUE, {
@@ -89,6 +96,16 @@ export async function startScheduler(opts: SchedulerOptions): Promise<SchedulerH
         return acc;
       }, {});
       jobDeps.log?.(`reminder pass ${job.id}: ${JSON.stringify(tally)} (${outcomes.length} tenants)`);
+      // P10 dunning runs in the same tick (after reminders). A dunning failure must
+      // NOT mask a successful reminder pass, so it's caught and logged separately.
+      if (dunning) {
+        try {
+          const d = await runDunningPass(dunning, runNow());
+          jobDeps.log?.(`dunning pass ${job.id}: ${d.length} subscriptions`);
+        } catch (err) {
+          jobDeps.log?.(`dunning pass ${job.id} failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
       // Surfacing an error here lets BullMQ retry with backoff; the reminder_log
       // latch makes the retry re-send only what genuinely failed.
       const errored = outcomes.filter((o) => o.status === 'error');
