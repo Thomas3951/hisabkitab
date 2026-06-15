@@ -56,6 +56,8 @@ export interface PaymentsHttpDeps {
   khalti: KhaltiClient;
   returnUrl: string;
   websiteUrl: string;
+  /** Subscription billing live? Omitted/false = dev mode (no charge). PAYMENTS_LIVE=1 enables it. */
+  live?: boolean;
   log?: (msg: string) => void;
 }
 
@@ -112,6 +114,7 @@ export function buildPaymentsHttpServer(deps: PaymentsHttpDeps): ReturnType<type
         khalti: deps.khalti,
         returnUrl: deps.returnUrl,
         websiteUrl: deps.websiteUrl,
+        ...(deps.live !== undefined ? { live: deps.live } : {}),
       });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => {
@@ -143,6 +146,8 @@ if (isDirectRun) {
     }),
     returnUrl: `${publicBase}/payments/khalti/return`,
     websiteUrl: process.env['WEBSITE_URL'] ?? 'https://hisabkitab.example',
+    // Subscription billing stays in DEV mode unless explicitly switched on.
+    live: process.env['PAYMENTS_LIVE'] === '1' || process.env['PAYMENTS_LIVE']?.toLowerCase() === 'true',
     log: (m) => console.log(`[payments] ${m}`),
   });
   httpServer.listen(port, () => console.log(`hisab-payments listening on :${port} (/mcp + /payments/khalti/return)`));

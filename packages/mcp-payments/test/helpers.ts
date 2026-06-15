@@ -30,13 +30,19 @@ export interface TestSession {
 }
 
 /** Connect a real MCP client to a tenant-bound Payments server over an in-memory pair. */
-export async function openSession(handle: DbHandle, tenantId: string, stub: KhaltiStub): Promise<TestSession> {
+export async function openSession(
+  handle: DbHandle,
+  tenantId: string,
+  stub: KhaltiStub,
+  opts: { live?: boolean } = {},
+): Promise<TestSession> {
   const server = buildPaymentsServer({
     db: handle.db,
     tenantId,
     khalti: new KhaltiClient({ secretKey: STUB_SECRET, origin: stub.origin }),
     returnUrl: 'http://127.0.0.1:9/payments/khalti/return', // unused in tool tests
     websiteUrl: 'https://hisabkitab.example',
+    ...(opts.live !== undefined ? { live: opts.live } : {}),
   });
   const client = new Client({ name: 'payments-contract-test', version: '0.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

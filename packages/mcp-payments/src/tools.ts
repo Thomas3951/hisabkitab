@@ -16,6 +16,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { schema, withTenant, type Db, type Tx } from '@hisab/db';
 import { defaultTaxConfig, splitVatInclusive, type TaxConfig } from '@hisab/shared';
 import type { KhaltiClient, KhaltiLookupResponse } from './khalti.js';
+import { SUBSCRIPTION_PLANS, getPlan, rupees } from './plans.js';
 
 const { payments, sales, auditLog } = schema;
 
@@ -55,6 +56,12 @@ export const inputSchemas = {
   },
   esewa_initiate_payment: { amount_paisa: paisa.optional() },
   fonepay_initiate_payment: { amount_paisa: paisa.optional() },
+  // ---- subscription billing (v2.0 P10): the SMB pays HisabKitab ----
+  list_subscription_plans: {},
+  initiate_subscription: {
+    plan_code: z.enum(['starter', 'pro', 'business']).describe('which subscription tier the owner chose'),
+    owner_approved: ownerApproved,
+  },
 } as const;
 
 export interface PaymentsToolContext {
@@ -65,6 +72,12 @@ export interface PaymentsToolContext {
   returnUrl: string;
   websiteUrl: string;
   cfg?: TaxConfig;
+  /**
+   * When false/omitted, subscription billing runs in DEV mode: it shows the plan
+   * and price but does NOT call Khalti or write a payment (no charge, no API cost).
+   * Flip to true only once deployed with a real Khalti merchant key (PAYMENTS_LIVE=1).
+   */
+  live?: boolean;
 }
 
 type Args<K extends keyof typeof inputSchemas> = z.infer<z.ZodObject<(typeof inputSchemas)[K]>>;
@@ -240,6 +253,92 @@ export function createToolHandlers(ctx: PaymentsToolContext) {
       });
     },
 
+    // ---- subscription billing (v2.0 P10) ----
+    async list_subscription_plans(_args: Args<'list_subscription_plans'>) {
+      return {
+        currency: 'NPR' as const,
+        billing: 'prepaid monthly' as const,
+        live: ctx.live === true,
+        plans: SUBSCRIPTION_PLANS.map((p) => ({
+          code: p.code,
+          name: p.name,
+          price_paisa: p.pricePaisa,
+          price_display: rupees(p.pricePaisa),
+          blurb: p.blurb,
+          features: p.features,
+        })),
+      };
+    },
+
+    /**
+     * Start a subscription payment for the chosen plan. The price comes from the
+     * plan config (never the caller), so the amount can't be tampered with. Requires
+     * the owner's explicit ✅. In DEV mode (ctx.live !== true) it returns the plan +
+     * price WITHOUT calling Khalti or charging — safe until the servers are live.
+     */
+    async initiate_subscription(args: Args<'initiate_subscription'>) {
+      const plan = getPlan(args.plan_code);
+      if (!plan) return { ok: false as const, reason: `unknown plan: ${args.plan_code}` };
+
+      if (ctx.live !== true) {
+        // Safe/dev mode: no Khalti call, no DB write, no cost. Record the intent only.
+        await inTenantTx((tx) =>
+          audit(tx, ctx.tenantId, 'subscription.dev_preview', { plan: plan.code, price_paisa: plan.pricePaisa }),
+        );
+        return {
+          ok: true as const,
+          mode: 'development' as const,
+          plan: plan.code,
+          plan_name: plan.name,
+          amount_paisa: plan.pricePaisa,
+          amount_display: rupees(plan.pricePaisa),
+          charged: false as const,
+          note: 'Development environment: nothing was charged. Live billing opens once HisabKitab is deployed with a Khalti merchant account.',
+        };
+      }
+
+      // Live mode: same exactly-once Khalti path as a collection, priced from config.
+      const orderId = `hisab-sub-${randomUUID()}`;
+      const purpose = `HisabKitab ${plan.name} subscription (1 month)`;
+      const initiated = await ctx.khalti.initiatePayment({
+        amountPaisa: BigInt(plan.pricePaisa),
+        purchaseOrderId: orderId,
+        purchaseOrderName: purpose,
+        returnUrl: ctx.returnUrl,
+        websiteUrl: ctx.websiteUrl,
+      });
+      return inTenantTx(async (tx) => {
+        await tx.insert(payments).values({
+          tenantId: ctx.tenantId,
+          provider: 'khalti',
+          pidx: initiated.pidx,
+          purchaseOrderId: orderId,
+          purchaseOrderName: purpose,
+          amountPaisa: BigInt(plan.pricePaisa),
+          paymentUrl: initiated.payment_url,
+        });
+        await audit(tx, ctx.tenantId, 'subscription.initiated', {
+          pidx: initiated.pidx,
+          plan: plan.code,
+          amount_paisa: plan.pricePaisa,
+          owner_approved: true,
+        });
+        return {
+          ok: true as const,
+          mode: 'live' as const,
+          plan: plan.code,
+          plan_name: plan.name,
+          pidx: initiated.pidx,
+          payment_url: initiated.payment_url,
+          expires_at: initiated.expires_at,
+          amount_paisa: plan.pricePaisa,
+          amount_display: rupees(plan.pricePaisa),
+          charged: false as const,
+          note: 'Share/open the payment_url to pay. The subscription activates only after the payment completes and verify_payment confirms it.',
+        };
+      });
+    },
+
     async verify_payment(args: Args<'verify_payment'>) {
       return inTenantTx(async (tx) => {
         const [row] = await tx.select().from(payments).where(eq(payments.pidx, args.pidx));
@@ -320,4 +419,8 @@ export const toolDescriptions: Record<keyof typeof inputSchemas, string> = {
   list_collected_payments: 'List this business\'s Khalti payments (newest first), optionally by status.',
   esewa_initiate_payment: 'eSewa is COMING SOON — returns a friendly message to relay; offer Khalti instead.',
   fonepay_initiate_payment: 'Fonepay is COMING SOON — returns a friendly message to relay; offer Khalti instead.',
+  list_subscription_plans:
+    'List the HisabKitab subscription plans the business can buy (Starter/Pro/Business, prices in NPR, prepaid monthly). Read-only, no charge. Use the EXACT price_display values when telling the owner.',
+  initiate_subscription:
+    'Start paying for a HisabKitab subscription plan (the business pays US). Price comes from the chosen plan_code, not the caller. REQUIRES the owner\'s explicit "✅"/yes (owner_approved). In development it returns the plan + price WITHOUT charging; once live it returns a Khalti payment_url.',
 };

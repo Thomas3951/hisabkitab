@@ -15,14 +15,14 @@ const PLANS: Plan[] = [
   {
     code: 'starter',
     name: 'Starter',
-    priceNpr: 999,
+    priceNpr: 2999,
     blurb: 'For a solo shop finding its rhythm.',
     perks: ['Log by photo or text', 'VAT reminders', 'Nil return prep', '1 user'],
   },
   {
     code: 'pro',
     name: 'Pro',
-    priceNpr: 1999,
+    priceNpr: 4999,
     blurb: 'For a growing business with credit customers.',
     perks: ['Everything in Starter', 'Debtors and creditors', 'Statements and aging', '3 users'],
     popular: true,
@@ -30,7 +30,7 @@ const PLANS: Plan[] = [
   {
     code: 'business',
     name: 'Business',
-    priceNpr: 2999,
+    priceNpr: 7999,
     blurb: 'For an established SMB and its accountant.',
     perks: ['Everything in Pro', 'All PDF reports', 'Accountant seat', 'Priority support'],
   },
