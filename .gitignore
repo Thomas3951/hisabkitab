@@ -17,3 +17,4 @@ packages/orchestrator/report-samples/
 # Private docs — ALL of docs/ stays local, never published to GitHub.
 # (manuals, PRDs, product specs, deploy + incident runbooks, legal drafts).
 docs/
+context-manual.txt
